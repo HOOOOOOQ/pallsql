@@ -122,7 +122,8 @@ void main() {
     addTearDown(tester.view.reset);
 
     final List<FlutterErrorDetails> errors = <FlutterErrorDetails>[];
-    final FlutterExceptionHandler? previousHandler = FlutterError.onError;
+    final void Function(FlutterErrorDetails)? previousHandler =
+        FlutterError.onError;
     FlutterError.onError = errors.add;
     addTearDown(() => FlutterError.onError = previousHandler);
 
@@ -153,7 +154,8 @@ void main() {
     addTearDown(tester.view.reset);
 
     final List<FlutterErrorDetails> errors = <FlutterErrorDetails>[];
-    final FlutterExceptionHandler? previousHandler = FlutterError.onError;
+    final void Function(FlutterErrorDetails)? previousHandler =
+        FlutterError.onError;
     FlutterError.onError = errors.add;
     addTearDown(() => FlutterError.onError = previousHandler);
 
