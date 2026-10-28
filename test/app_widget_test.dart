@@ -90,9 +90,12 @@ void main() {
       1,
       reason: 'the Servers tab should be selected',
     );
-    for (int i = 0; i < 6; i++) {
-      await tester.pump(const Duration(milliseconds: 50));
-    }
+    // Let the Material ripple timers fire before the tree is disposed,
+    // otherwise flutter_test reports a still-pending timer at teardown.
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    expect(tester.takeException(), isNull);
     expect(find.text('Servers'), findsWidgets);
   });
 

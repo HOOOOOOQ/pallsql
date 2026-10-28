@@ -65,7 +65,11 @@ def test_lines(lines: list[str]) -> list[str]:
                 or item.startswith("[E]")
                 or " [E]" in item
             )
-            if interesting:
+            if interesting or (
+                offset >= 1
+                and "thrown running a test" in previous
+                and not item.startswith("#")
+            ):
                 picked.append(item)
     if picked:
         return picked[:40]
