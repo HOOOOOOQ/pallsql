@@ -8,9 +8,8 @@ class AppFailure implements Exception {
   final String message;
   final String? details;
 
-  String get combined => details == null || details!.isEmpty
-      ? message
-      : '$message ($details)';
+  String get combined =>
+      details == null || details!.isEmpty ? message : '$message ($details)';
 
   @override
   String toString() => combined;

@@ -101,7 +101,8 @@ class _PhpPageState extends ConsumerState<PhpPage> {
       final HttpClientResponse response = await request.close();
       await response.drain<void>();
       if (response.statusCode == HttpStatus.notImplemented) {
-        message = 'HTTP 501 - PHP runtime not installed (source was not served)';
+        message =
+            'HTTP 501 - PHP runtime not installed (source was not served)';
         failed = true;
       } else if (response.statusCode >= 400) {
         message = 'HTTP ${response.statusCode} from /index.php';
@@ -176,11 +177,7 @@ class _PhpPageState extends ConsumerState<PhpPage> {
                     'extensions  ${info.extensions.length}',
                   ]
                 : <String>[
-                    'candidate   ${
-                        settings.phpBinaryPath.isEmpty
-                            ? 'config/php/php-cgi'
-                            : settings.phpBinaryPath
-                      }',
+                    'candidate   ${settings.phpBinaryPath.isEmpty ? 'config/php/php-cgi' : settings.phpBinaryPath}',
                     'reason      ${info.reason ?? 'not probed yet'}',
                   ],
             actions: <Widget>[
@@ -198,7 +195,10 @@ class _PhpPageState extends ConsumerState<PhpPage> {
               ),
             ],
           ),
-          if (available) ..._availableSections(info) else ..._unavailableSections(),
+          if (available)
+            ..._availableSections(info)
+          else
+            ..._unavailableSections(),
           const SizedBox(height: 18),
           const PallSqlSectionHeader(title: 'Request bridge'),
           PallSqlCard(

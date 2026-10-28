@@ -63,7 +63,8 @@ class DatabaseInfo {
   final DateTime modifiedAt;
   final int? tableCount;
 
-  DatabaseInfo copyWith({int? tableCount, int? sizeBytes, DateTime? modifiedAt}) {
+  DatabaseInfo copyWith(
+      {int? tableCount, int? sizeBytes, DateTime? modifiedAt}) {
     return DatabaseInfo(
       name: name,
       path: path,
@@ -158,9 +159,10 @@ class QueryResult {
       };
 
   static QueryResult fromJson(Map<String, Object?> json) {
-    final List<String> columns = (json['columns'] as List<Object?>? ?? <Object?>[])
-        .map((Object? e) => e?.toString() ?? '')
-        .toList();
+    final List<String> columns =
+        (json['columns'] as List<Object?>? ?? <Object?>[])
+            .map((Object? e) => e?.toString() ?? '')
+            .toList();
     final List<List<String?>> rows = <List<String?>>[];
     final Object? rawRows = json['rows'];
     if (rawRows is List) {
@@ -174,7 +176,8 @@ class QueryResult {
       columns: columns,
       rows: rows,
       statements: (json['statements'] as num?)?.toInt() ?? 1,
-      duration: Duration(milliseconds: (json['durationMs'] as num?)?.toInt() ?? 0),
+      duration:
+          Duration(milliseconds: (json['durationMs'] as num?)?.toInt() ?? 0),
       rowsAffected: (json['rowsAffected'] as num?)?.toInt() ?? 0,
       lastInsertRowId: (json['lastInsertRowId'] as num?)?.toInt(),
       notices: (json['notices'] as List<Object?>? ?? <Object?>[])
@@ -184,7 +187,8 @@ class QueryResult {
     );
   }
 
-  static QueryResult failure(String message, {Duration? duration}) => QueryResult(
+  static QueryResult failure(String message, {Duration? duration}) =>
+      QueryResult(
         columns: const <String>[],
         rows: const <List<String?>>[],
         statements: 0,

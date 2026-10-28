@@ -26,7 +26,8 @@ class QueryResultView extends StatelessWidget {
         decoration: BoxDecoration(
           color: PallSqlColors.error.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: PallSqlColors.error.withValues(alpha: 0.35)),
+          border:
+              Border.all(color: PallSqlColors.error.withValues(alpha: 0.35)),
         ),
         child: SelectableText(
           result.error!,
@@ -155,7 +156,8 @@ class QueryResultView extends StatelessWidget {
                             Container(
                               decoration: const BoxDecoration(
                                 border: Border(
-                                  bottom: BorderSide(color: PallSqlColors.border),
+                                  bottom:
+                                      BorderSide(color: PallSqlColors.border),
                                 ),
                               ),
                               child: Row(

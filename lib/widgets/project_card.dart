@@ -54,7 +54,8 @@ class ProjectCard extends StatelessWidget {
                 ),
               ),
               if (isActive)
-                const PallSqlPill(label: 'Serving', icon: Icons.play_arrow_rounded),
+                const PallSqlPill(
+                    label: 'Serving', icon: Icons.play_arrow_rounded),
             ],
           ),
           const SizedBox(height: 6),
@@ -139,7 +140,8 @@ class _ProjectAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color color = destructive ? PallSqlColors.error : PallSqlColors.textSecondary;
+    final Color color =
+        destructive ? PallSqlColors.error : PallSqlColors.textSecondary;
     return TextButton.icon(
       onPressed: onPressed,
       icon: Icon(icon, size: 14, color: color),

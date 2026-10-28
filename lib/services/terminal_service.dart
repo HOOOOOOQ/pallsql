@@ -170,7 +170,8 @@ class TerminalService {
           final TerminalCommand? command = _find(args.first);
           if (command == null) {
             return TerminalResult(<TerminalLine>[
-              TerminalLine('No such command: ${args.first}', level: LogLevel.error),
+              TerminalLine('No such command: ${args.first}',
+                  level: LogLevel.error),
             ]);
           }
           return TerminalResult(<TerminalLine>[
@@ -181,7 +182,8 @@ class TerminalService {
         return TerminalResult(<TerminalLine>[
           const TerminalLine('PALLSQL command registry (no shell access):'),
           for (final TerminalCommand command in _commands)
-            TerminalLine('  ${command.usage.padRight(28)}${command.description}'),
+            TerminalLine(
+                '  ${command.usage.padRight(28)}${command.description}'),
           const TerminalLine(''),
           const TerminalLine(
             'Commands call internal PALLSQL APIs. Arbitrary shell commands are '
@@ -265,7 +267,8 @@ class TerminalService {
       usage: 'server status|start|stop|restart',
       description: 'Inspect or control the local web server',
       run: (TerminalApi api, List<String> args) async {
-        final String action = args.isEmpty ? 'status' : args.first.toLowerCase();
+        final String action =
+            args.isEmpty ? 'status' : args.first.toLowerCase();
         switch (action) {
           case 'status':
             final WebServerSnapshot snapshot = api.serverSnapshot;
@@ -309,7 +312,8 @@ class TerminalService {
         final List<LogEntry> entries =
             api.recentLogs(limit: limit < 1 ? 1 : (limit > 100 ? 100 : limit));
         if (entries.isEmpty) {
-          return const TerminalResult(<TerminalLine>[TerminalLine('(no logs)')]);
+          return const TerminalResult(
+              <TerminalLine>[TerminalLine('(no logs)')]);
         }
         return TerminalResult(<TerminalLine>[
           for (final LogEntry entry in entries)
@@ -350,7 +354,8 @@ class TerminalService {
       run: (TerminalApi api, List<String> args) async {
         final String action = args.isEmpty ? 'list' : args.first.toLowerCase();
         if (action == 'status') {
-          final EngineAvailability availability = await api.databaseAvailability();
+          final EngineAvailability availability =
+              await api.databaseAvailability();
           return TerminalResult(<TerminalLine>[
             TerminalLine('engine: ${availability.engine.label}'),
             TerminalLine(
@@ -365,7 +370,8 @@ class TerminalService {
         if (action == 'tables') {
           if (args.length < 2) {
             return const TerminalResult(<TerminalLine>[
-              TerminalLine('Usage: database tables <name>', level: LogLevel.warning),
+              TerminalLine('Usage: database tables <name>',
+                  level: LogLevel.warning),
             ]);
           }
           final List<TableInfo> tables = await api.tables(args[1]);
@@ -396,8 +402,8 @@ class TerminalService {
       name: 'storage',
       usage: 'storage',
       description: 'Show workspace storage usage',
-      run: (TerminalApi api, List<String> args) async =>
-          TerminalResult(<TerminalLine>[TerminalLine(await api.storageSummary())]),
+      run: (TerminalApi api, List<String> args) async => TerminalResult(
+          <TerminalLine>[TerminalLine(await api.storageSummary())]),
     ),
     TerminalCommand(
       name: 'version',
@@ -419,7 +425,8 @@ class TerminalService {
           TerminalLine('port: ${settings.httpPort}'),
           TerminalLine('lan access: ${settings.lanAccess}'),
           TerminalLine('autostart: ${settings.autoStartServer}'),
-          TerminalLine('php binary: ${settings.phpBinaryPath.isEmpty ? 'auto' : settings.phpBinaryPath}'),
+          TerminalLine(
+              'php binary: ${settings.phpBinaryPath.isEmpty ? 'auto' : settings.phpBinaryPath}'),
         ]);
       },
     ),

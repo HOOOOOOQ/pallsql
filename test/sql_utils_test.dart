@@ -62,7 +62,8 @@ SELECT 2;
       expect(SqlUtils.isDestructive('DELETE FROM t'), isTrue);
       expect(SqlUtils.isDestructive('DELETE FROM t WHERE id = 1'), isFalse);
       expect(SqlUtils.isDestructive('UPDATE t SET a = 1'), isTrue);
-      expect(SqlUtils.isDestructive('UPDATE t SET a = 1 WHERE id = 1'), isFalse);
+      expect(
+          SqlUtils.isDestructive('UPDATE t SET a = 1 WHERE id = 1'), isFalse);
       expect(
         SqlUtils.isDestructive('ALTER TABLE t DROP COLUMN a'),
         isTrue,

@@ -42,7 +42,8 @@ void main() {
     await files.createFile('htdocs', '.env', content: 'SECRET=1');
     final List<FileEntry> hidden =
         await files.list('htdocs', showHidden: false);
-    expect(hidden.map((FileEntry entry) => entry.name), isNot(contains('.env')));
+    expect(
+        hidden.map((FileEntry entry) => entry.name), isNot(contains('.env')));
     final List<FileEntry> all = await files.list('htdocs', showHidden: true);
     expect(all.map((FileEntry entry) => entry.name), contains('.env'));
   });
@@ -98,7 +99,8 @@ void main() {
     await files.createFile('htdocs', 'contact.html', content: 'x');
     await files.createFile('htdocs', 'about.html', content: 'y');
     final List<FileEntry> results = await files.search('contact');
-    expect(results.map((FileEntry entry) => entry.name), contains('contact.html'));
+    expect(
+        results.map((FileEntry entry) => entry.name), contains('contact.html'));
     expect(results.map((FileEntry entry) => entry.name),
         isNot(contains('about.html')));
   });

@@ -11,7 +11,8 @@ enum SqlStatementKind {
 
 /// A single statement extracted from a script.
 class SqlStatement {
-  const SqlStatement({required this.sql, required this.keyword, required this.kind});
+  const SqlStatement(
+      {required this.sql, required this.keyword, required this.kind});
 
   final String sql;
   final String keyword;

@@ -28,8 +28,8 @@ class BackupInfo {
 
   /// Backup timestamp is part of the file name so it survives file copies.
   static DateTime? timestampFromName(String fileName) {
-    final RegExpMatch? match =
-        RegExp(r'pallsql-backup-(\d{8})-(\d{6})').firstMatch(p.basename(fileName));
+    final RegExpMatch? match = RegExp(r'pallsql-backup-(\d{8})-(\d{6})')
+        .firstMatch(p.basename(fileName));
     if (match == null) {
       return null;
     }

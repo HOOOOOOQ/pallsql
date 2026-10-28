@@ -68,7 +68,8 @@ class _FilesPageState extends ConsumerState<FilesPage> {
         return;
       }
       setState(() => _loading = false);
-      showPallSqlSnack(ScaffoldMessenger.of(context), failure.combined, error: true);
+      showPallSqlSnack(ScaffoldMessenger.of(context), failure.combined,
+          error: true);
     }
   }
 
@@ -85,7 +86,8 @@ class _FilesPageState extends ConsumerState<FilesPage> {
       final String name = p.basenameWithoutExtension(entry.name);
       Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (BuildContext context) => DatabaseDetailPage(databaseName: name),
+          builder: (BuildContext context) =>
+              DatabaseDetailPage(databaseName: name),
         ),
       );
       return;
@@ -99,7 +101,8 @@ class _FilesPageState extends ConsumerState<FilesPage> {
     }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (BuildContext context) => FileEditorPage(relativePath: entry.relativePath),
+        builder: (BuildContext context) =>
+            FileEditorPage(relativePath: entry.relativePath),
       ),
     );
     if (mounted) {
@@ -245,7 +248,9 @@ class _FilesPageState extends ConsumerState<FilesPage> {
 
   Future<void> _importFile() async {
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-    final String? picked = await ref.read(nativeBridgeProvider).pickFileToImport(
+    final String? picked = await ref
+        .read(nativeBridgeProvider)
+        .pickFileToImport(
           destinationDirectory: ref.read(bootstrapProvider).workspace.tmp.path,
         );
     if (!mounted) {
@@ -286,7 +291,8 @@ class _FilesPageState extends ConsumerState<FilesPage> {
         p.join(ref.read(bootstrapProvider).workspace.tmp.path, entry.name),
       );
       await _files.exportFile(entry.relativePath, target.parent);
-      final bool shared = await ref.read(nativeBridgeProvider).shareFile(target.path);
+      final bool shared =
+          await ref.read(nativeBridgeProvider).shareFile(target.path);
       if (!mounted) {
         return;
       }
@@ -443,13 +449,18 @@ class _FilesPageState extends ConsumerState<FilesPage> {
               }
             },
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(value: 'file', child: Text('New file')),
-              const PopupMenuItem<String>(value: 'folder', child: Text('New folder')),
-              const PopupMenuItem<String>(value: 'hidden', child: Text('Toggle hidden')),
-              const PopupMenuItem<String>(value: 'refresh', child: Text('Refresh')),
+              const PopupMenuItem<String>(
+                  value: 'file', child: Text('New file')),
+              const PopupMenuItem<String>(
+                  value: 'folder', child: Text('New folder')),
+              const PopupMenuItem<String>(
+                  value: 'hidden', child: Text('Toggle hidden')),
+              const PopupMenuItem<String>(
+                  value: 'refresh', child: Text('Refresh')),
               const PopupMenuDivider(),
               for (final FileSortOrder order in FileSortOrder.values)
-                PopupMenuItem<String>(value: order.name, child: Text(order.label)),
+                PopupMenuItem<String>(
+                    value: order.name, child: Text(order.label)),
             ],
           ),
         ],
@@ -492,8 +503,8 @@ class _FilesPageState extends ConsumerState<FilesPage> {
                     prefixIcon: const Icon(Icons.search_rounded, size: 17),
                     filled: true,
                     fillColor: PallSqlColors.surface,
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 10),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(9),
                       borderSide: const BorderSide(color: PallSqlColors.border),
@@ -573,7 +584,8 @@ class _FilesPageState extends ConsumerState<FilesPage> {
                                       style: const TextStyle(
                                         fontSize: 13,
                                         color: PallSqlColors.textPrimary,
-                                        fontFamily: PallSqlColors.monoFontFamily,
+                                        fontFamily:
+                                            PallSqlColors.monoFontFamily,
                                       ),
                                     ),
                                     Text(
@@ -590,7 +602,8 @@ class _FilesPageState extends ConsumerState<FilesPage> {
                                 ),
                               ),
                               PopupMenuButton<String>(
-                                icon: const Icon(Icons.more_vert_rounded, size: 16),
+                                icon: const Icon(Icons.more_vert_rounded,
+                                    size: 16),
                                 color: PallSqlColors.surfaceElevated,
                                 onSelected: (String value) {
                                   if (value == 'select') {

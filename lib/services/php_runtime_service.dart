@@ -43,7 +43,8 @@ class PhpRuntimeInfo {
       PhpRuntimeInfo(available: false, reason: reason);
 
   ServiceStatus toStatus() => available
-      ? ServiceStatus(ServiceState.running, message: 'PHP ${version ?? ''}'.trim())
+      ? ServiceStatus(ServiceState.running,
+          message: 'PHP ${version ?? ''}'.trim())
       : ServiceStatus.unavailable(
           reason ?? 'PHP runtime not installed in this build');
 
@@ -99,8 +100,7 @@ class PhpCgiRequest {
       if (lower == 'content-length' || lower == 'content-type') {
         return;
       }
-      final String key =
-          'HTTP_${lower.toUpperCase().replaceAll('-', '_')}';
+      final String key = 'HTTP_${lower.toUpperCase().replaceAll('-', '_')}';
       env[key] = value;
     });
     for (final MapEntry<String, String> entry in headers.entries) {
@@ -199,7 +199,8 @@ class ProcessPhpRuntime implements PhpBridge {
         );
         return _info;
       }
-      final String versionText = '${versionResult.stdout}${versionResult.stderr}';
+      final String versionText =
+          '${versionResult.stdout}${versionResult.stderr}';
       final RegExpMatch? match =
           RegExp(r'PHP\s+([0-9][0-9A-Za-z.\-]*)').firstMatch(versionText);
       final String version = match?.group(1) ?? 'unknown';
@@ -277,13 +278,15 @@ class ProcessPhpRuntime implements PhpBridge {
       final List<int> stdout = await stdoutFuture.timeout(timeout);
       final List<int> stderr = await stderrFuture.timeout(timeout);
       final int exitCode = await process.exitCode.timeout(timeout);
-      final String stderrText = utf8.decode(stderr, allowMalformed: true).trim();
+      final String stderrText =
+          utf8.decode(stderr, allowMalformed: true).trim();
       if (exitCode != 0) {
         _logs.error(
           LogSource.php,
           'PHP exited with $exitCode: ${_short(stderrText)}',
         );
-        return PhpCgiResponse.error(500, 'PHP script failed (exit code $exitCode)');
+        return PhpCgiResponse.error(
+            500, 'PHP script failed (exit code $exitCode)');
       }
       final PhpCgiResponse parsed = _parseCgiOutput(stdout, stderrText);
       _logs.info(
@@ -363,9 +366,7 @@ class ProcessPhpRuntime implements PhpBridge {
     int separatorLength = 0;
     for (int i = 0; i < bytes.length - 1; i++) {
       if (bytes[i] == 13 && bytes[i + 1] == 10) {
-        if (i + 3 < bytes.length &&
-            bytes[i + 2] == 13 &&
-            bytes[i + 3] == 10) {
+        if (i + 3 < bytes.length && bytes[i + 2] == 13 && bytes[i + 3] == 10) {
           headerEnd = i;
           separatorLength = 4;
           break;
@@ -469,7 +470,8 @@ class PhpRuntimeService implements PhpBridge {
     final List<String> candidates = <String>[];
     if (_configuredPath.trim().isNotEmpty) {
       try {
-        candidates.add(_workspace.guard.resolveRelative(_configuredPath.trim()));
+        candidates
+            .add(_workspace.guard.resolveRelative(_configuredPath.trim()));
       } on PathSecurityFailure {
         _logs.warning(LogSource.php, 'Ignoring unsafe PHP binary path');
       }

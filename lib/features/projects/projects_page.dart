@@ -109,13 +109,13 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
     if (name == null || !mounted) {
       return;
     }
-    final String? error = await ref
-        .read(projectsProvider.notifier)
-        .duplicate(project, name);
+    final String? error =
+        await ref.read(projectsProvider.notifier).duplicate(project, name);
     if (!mounted) {
       return;
     }
-    showPallSqlSnack(messenger, error ?? 'Copied to $name', error: error != null);
+    showPallSqlSnack(messenger, error ?? 'Copied to $name',
+        error: error != null);
   }
 
   Future<void> _export(Project project) async {
@@ -144,7 +144,9 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
 
   Future<void> _import() async {
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-    final String? picked = await ref.read(nativeBridgeProvider).pickFileToImport(
+    final String? picked = await ref
+        .read(nativeBridgeProvider)
+        .pickFileToImport(
           destinationDirectory: ref.read(bootstrapProvider).workspace.tmp.path,
         );
     if (!mounted) {
@@ -159,9 +161,8 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
       return;
     }
     setState(() => _busy = true);
-    final String? error = await ref
-        .read(projectsProvider.notifier)
-        .importZip(File(picked));
+    final String? error =
+        await ref.read(projectsProvider.notifier).importZip(File(picked));
     if (!mounted) {
       return;
     }
@@ -231,7 +232,8 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
               child: PallSqlEmptyState(
                 icon: Icons.folder_special_rounded,
                 title: 'No projects yet',
-                message: 'Create a static site, a PHP hello world, an HTML form '
+                message:
+                    'Create a static site, a PHP hello world, an HTML form '
                     'or a database sample.',
                 action: FilledButton(
                   style: FilledButton.styleFrom(

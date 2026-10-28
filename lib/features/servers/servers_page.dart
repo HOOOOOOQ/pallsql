@@ -75,8 +75,9 @@ class _ServersPageState extends ConsumerState<ServersPage> {
       return;
     }
     final AppSettings current = ref.read(settingsProvider);
-    final String? error =
-        await ref.read(settingsProvider.notifier).update(current.copyWith(httpPort: port));
+    final String? error = await ref
+        .read(settingsProvider.notifier)
+        .update(current.copyWith(httpPort: port));
     if (!mounted) {
       return;
     }
@@ -293,7 +294,8 @@ class _ServersPageState extends ConsumerState<ServersPage> {
                       : (bool value) async {
                           final ScaffoldMessengerState messenger =
                               ScaffoldMessenger.of(context);
-                          final AppSettings current = ref.read(settingsProvider);
+                          final AppSettings current =
+                              ref.read(settingsProvider);
                           final String? error = await ref
                               .read(settingsProvider.notifier)
                               .update(
@@ -327,11 +329,7 @@ class _ServersPageState extends ConsumerState<ServersPage> {
                   ]
                 : <String>[
                     'status      unavailable',
-                    'php-cgi     ${
-                        settings.phpBinaryPath.isEmpty
-                            ? 'config/php/php-cgi (auto detect)'
-                            : settings.phpBinaryPath
-                      }',
+                    'php-cgi     ${settings.phpBinaryPath.isEmpty ? 'config/php/php-cgi (auto detect)' : settings.phpBinaryPath}',
                   ],
             actions: <Widget>[
               ServiceControlButton(

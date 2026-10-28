@@ -33,7 +33,8 @@ class MariaDbEngine implements DatabaseEngine {
   DatabaseEngineId get id => DatabaseEngineId.mariadb;
 
   @override
-  Future<EngineAvailability> availability() async => EngineAvailability.unavailable(
+  Future<EngineAvailability> availability() async =>
+      EngineAvailability.unavailable(
         DatabaseEngineId.mariadb,
         reason,
       );

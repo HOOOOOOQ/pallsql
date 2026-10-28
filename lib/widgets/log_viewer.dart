@@ -148,7 +148,8 @@ class _LogViewerState extends State<LogViewer> {
                 style: TextButton.styleFrom(
                   foregroundColor: PallSqlColors.textSecondary,
                   minimumSize: Size.zero,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
               ),
@@ -160,7 +161,8 @@ class _LogViewerState extends State<LogViewer> {
                 style: TextButton.styleFrom(
                   foregroundColor: PallSqlColors.error,
                   minimumSize: Size.zero,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
               ),

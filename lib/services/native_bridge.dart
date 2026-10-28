@@ -104,7 +104,9 @@ class NativeBridge {
       androidVersion: result['androidVersion']?.toString() ?? 'unknown',
       sdkInt: (result['sdkInt'] as num?)?.toInt() ?? 0,
       abis: abis is List
-          ? abis.map((Object? value) => value.toString()).toList(growable: false)
+          ? abis
+              .map((Object? value) => value.toString())
+              .toList(growable: false)
           : const <String>[],
       appVersion: result['appVersion']?.toString() ?? AppInfo.version,
       packageName: result['packageName']?.toString() ?? AppInfo.packageName,
@@ -173,8 +175,8 @@ class NativeBridge {
 
   /// Opens a URL (for example the local website) in an external browser.
   Future<bool> openUrl(String url) async {
-    final bool? result =
-        await _invoke<bool>('openUrl', <String, Object?>{'url': url}, LogSource.app);
+    final bool? result = await _invoke<bool>(
+        'openUrl', <String, Object?>{'url': url}, LogSource.app);
     return result ?? false;
   }
 
@@ -182,17 +184,20 @@ class NativeBridge {
     await _events.close();
   }
 
-  Future<Map<String, Object?>?> _invokeMap(String method, LogSource source) async {
+  Future<Map<String, Object?>?> _invokeMap(
+      String method, LogSource source) async {
     final Object? result = await _invoke<Object?>(method, null, source);
     if (result is Map) {
       return result.map<String, Object?>(
-        (Object? key, Object? value) => MapEntry<String, Object?>('$key', value),
+        (Object? key, Object? value) =>
+            MapEntry<String, Object?>('$key', value),
       );
     }
     return null;
   }
 
-  Future<T?> _invoke<T>(String method, Object? arguments, LogSource source) async {
+  Future<T?> _invoke<T>(
+      String method, Object? arguments, LogSource source) async {
     final MethodChannel? channel = _channel;
     if (channel == null) {
       return null;

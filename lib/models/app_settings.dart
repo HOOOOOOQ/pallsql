@@ -84,8 +84,10 @@ class AppSettings {
     if (maxLogEntries < 50 || maxLogEntries > 5000) {
       issues.add('Log buffer must be between 50 and 5000 entries');
     }
-    if (phpBinaryPath.isNotEmpty && !Validators.isSafeRelativePath(phpBinaryPath)) {
-      issues.add('PHP binary path must be a relative path inside the workspace');
+    if (phpBinaryPath.isNotEmpty &&
+        !Validators.isSafeRelativePath(phpBinaryPath)) {
+      issues
+          .add('PHP binary path must be a relative path inside the workspace');
     }
     return issues;
   }
@@ -120,7 +122,8 @@ class AppSettings {
 
     double readFontSize() {
       final Object? raw = json['editorFontSize'];
-      final double? parsed = raw is num ? raw.toDouble() : double.tryParse('$raw');
+      final double? parsed =
+          raw is num ? raw.toDouble() : double.tryParse('$raw');
       if (parsed == null || parsed < 10 || parsed > 28) {
         return defaults.editorFontSize;
       }

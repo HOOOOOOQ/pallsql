@@ -30,7 +30,8 @@ class PathGuard {
     final List<String> segments = unixStyle.split('/');
     for (final String segment in segments) {
       if (segment == '..') {
-        throw const PathSecurityFailure('Parent directory traversal is blocked');
+        throw const PathSecurityFailure(
+            'Parent directory traversal is blocked');
       }
     }
     final String candidate = p.normalize(p.join(_normalizedRoot, unixStyle));

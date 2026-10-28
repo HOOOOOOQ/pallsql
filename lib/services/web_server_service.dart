@@ -45,11 +45,14 @@ class WebServerSnapshot {
         state,
         message: state == ServiceState.error
             ? error
-            : (isRunning ? 'Listening on ${bindAddress ?? ''}:${port ?? ''}' : null),
+            : (isRunning
+                ? 'Listening on ${bindAddress ?? ''}:${port ?? ''}'
+                : null),
       );
 
-  String get primaryUrl =>
-      urls.isNotEmpty ? urls.first : 'http://127.0.0.1:${port ?? AppInfo.defaultHttpPort}/';
+  String get primaryUrl => urls.isNotEmpty
+      ? urls.first
+      : 'http://127.0.0.1:${port ?? AppInfo.defaultHttpPort}/';
 
   Duration get uptime =>
       startedAt == null ? Duration.zero : DateTime.now().difference(startedAt!);
@@ -232,11 +235,14 @@ class WebServerService {
             ? 'Port $port is already in use'
             : 'Could not bind port $port',
       );
-      _logs.error(LogSource.webServer, 'Bind failed on port $port: ${error.message}');
+      _logs.error(
+          LogSource.webServer, 'Bind failed on port $port: ${error.message}');
       if (inUse) {
-        throw PortInUseFailure(port, details: 'Choose another port in Settings');
+        throw PortInUseFailure(port,
+            details: 'Choose another port in Settings');
       }
-      throw AppFailure('Could not start the local server', details: error.message);
+      throw AppFailure('Could not start the local server',
+          details: error.message);
     } on Object catch (error) {
       _server = null;
       _setState(ServiceState.error, error: 'Unexpected server error');
@@ -386,7 +392,7 @@ class WebServerService {
       _logs.info(
         LogSource.webServer,
         '${request.method} ${request.uri.path} -> $status '
-            '(${stopwatch.elapsedMilliseconds} ms)',
+        '(${stopwatch.elapsedMilliseconds} ms)',
       );
       _emit();
     }
@@ -527,7 +533,11 @@ class WebServerService {
   }
 
   Future<String?> _findIndex(String directoryPath) async {
-    for (final String candidate in <String>['index.html', 'index.htm', 'index.php']) {
+    for (final String candidate in <String>[
+      'index.html',
+      'index.htm',
+      'index.php'
+    ]) {
       final File file = File(p.join(directoryPath, candidate));
       if (await file.exists()) {
         return file.path;
@@ -538,7 +548,8 @@ class WebServerService {
 
   bool _isInsideRoot(String absolutePath) {
     try {
-      final String realRoot = Directory(_documentRoot).resolveSymbolicLinksSync();
+      final String realRoot =
+          Directory(_documentRoot).resolveSymbolicLinksSync();
       final String realTarget = File(absolutePath).resolveSymbolicLinksSync();
       return realTarget == realRoot || p.isWithin(realRoot, realTarget);
     } on FileSystemException {
@@ -562,7 +573,8 @@ class WebServerService {
       );
     }
     final HttpResponse response = request.response;
-    final String etag = 'W/"${stat.size}-${stat.modified.millisecondsSinceEpoch}"';
+    final String etag =
+        'W/"${stat.size}-${stat.modified.millisecondsSinceEpoch}"';
     response.headers
       ..set('Content-Type', MimeTypes.forFileName(file.path))
       ..set('X-Content-Type-Options', 'nosniff')
@@ -642,7 +654,8 @@ server. See the PHP page inside the app for details.</p>
       uri: request.uri,
       headers: _requestHeaders(request),
       body: body,
-      remoteAddress: request.connectionInfo?.remoteAddress.address ?? '127.0.0.1',
+      remoteAddress:
+          request.connectionInfo?.remoteAddress.address ?? '127.0.0.1',
       serverName: _bindAddress ?? '127.0.0.1',
       serverPort: _server?.port ?? AppInfo.defaultHttpPort,
     );

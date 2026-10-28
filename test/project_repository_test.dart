@@ -49,13 +49,14 @@ void main() {
 
   test('rejects invalid names and keeps folder names unique', () async {
     await expectLater(
-      repository.create(name: '../escape', template: ProjectTemplate.staticSite),
+      repository.create(
+          name: '../escape', template: ProjectTemplate.staticSite),
       throwsA(isA<Exception>()),
     );
-    final Project first =
-        await repository.create(name: 'Demo', template: ProjectTemplate.staticSite);
-    final Project second =
-        await repository.create(name: 'Demo', template: ProjectTemplate.staticSite);
+    final Project first = await repository.create(
+        name: 'Demo', template: ProjectTemplate.staticSite);
+    final Project second = await repository.create(
+        name: 'Demo', template: ProjectTemplate.staticSite);
     expect(second.directory, isNot(first.directory));
     expect(second.id, isNot(first.id));
   });
@@ -73,8 +74,8 @@ void main() {
   });
 
   test('duplicates and deletes a project', () async {
-    final Project project =
-        await repository.create(name: 'Base', template: ProjectTemplate.staticSite);
+    final Project project = await repository.create(
+        name: 'Base', template: ProjectTemplate.staticSite);
     final int before = (await repository.load()).length;
     final Project copy =
         await repository.duplicate(project, newName: 'Base copy');
@@ -84,7 +85,8 @@ void main() {
     await repository.delete(project);
     final List<Project> remaining = await repository.load();
     expect(remaining.map((Project item) => item.id), contains(copy.id));
-    expect(remaining.map((Project item) => item.id), isNot(contains(project.id)));
+    expect(
+        remaining.map((Project item) => item.id), isNot(contains(project.id)));
     expect(
       Directory('${workspace.projects.path}/${project.directory}').existsSync(),
       isFalse,
@@ -100,7 +102,8 @@ void main() {
     await repository.exportZip(project, archive);
     expect(archive.existsSync(), isTrue);
 
-    final Project imported = await repository.importZip(archive, name: 'Imported');
+    final Project imported =
+        await repository.importZip(archive, name: 'Imported');
     expect(imported.name, 'Imported');
     final Directory directory = await repository.directoryOf(imported);
     expect(directory.listSync(), isNotEmpty);

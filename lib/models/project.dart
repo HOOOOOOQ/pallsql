@@ -96,7 +96,8 @@ class Project {
     return projects;
   }
 
-  static String encodeList(List<Project> projects) => const JsonEncoder.withIndent(
+  static String encodeList(List<Project> projects) =>
+      const JsonEncoder.withIndent(
         '  ',
       ).convert(projects.map((Project p) => p.toJson()).toList());
 

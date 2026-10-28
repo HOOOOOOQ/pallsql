@@ -52,14 +52,17 @@ final Provider<NativeBridge> nativeBridgeProvider = Provider<NativeBridge>(
 );
 
 final Provider<NativeDeviceInfo?> deviceInfoProvider =
-    Provider<NativeDeviceInfo?>((Ref ref) => ref.watch(bootstrapProvider).deviceInfo);
+    Provider<NativeDeviceInfo?>(
+        (Ref ref) => ref.watch(bootstrapProvider).deviceInfo);
 
-final Provider<FileRepository> fileRepositoryProvider = Provider<FileRepository>(
+final Provider<FileRepository> fileRepositoryProvider =
+    Provider<FileRepository>(
   (Ref ref) => ref.watch(bootstrapProvider).files,
 );
 
 final Provider<ProjectRepository> projectRepositoryProvider =
-    Provider<ProjectRepository>((Ref ref) => ref.watch(bootstrapProvider).projects);
+    Provider<ProjectRepository>(
+        (Ref ref) => ref.watch(bootstrapProvider).projects);
 
 final Provider<SqliteDatabaseRepository> databaseRepositoryProvider =
     Provider<SqliteDatabaseRepository>(
@@ -324,7 +327,7 @@ class DatabaseNotifier extends AsyncNotifier<DatabaseOverview>
     final EngineAvailability mariadb = EngineAvailability.unavailable(
       DatabaseEngineId.mariadb,
       'MariaDB is not bundled with this build. See the Database tab for the '
-          'evaluation notes.',
+      'evaluation notes.',
     );
     List<DatabaseInfo> databases = <DatabaseInfo>[];
     if (sqlite.available) {
@@ -418,7 +421,8 @@ class ProjectsNotifier extends AsyncNotifier<List<Project>>
 
   @override
   Future<void> reload() async {
-    final List<Project> projects = await ref.read(projectRepositoryProvider).load();
+    final List<Project> projects =
+        await ref.read(projectRepositoryProvider).load();
     if (!_disposed) {
       state = AsyncValue<List<Project>>.data(projects);
     }
@@ -477,9 +481,7 @@ class ProjectsNotifier extends AsyncNotifier<List<Project>>
   @override
   Future<String?> importZip(File archive, {String? name}) async {
     try {
-      await ref
-          .read(projectRepositoryProvider)
-          .importZip(archive, name: name);
+      await ref.read(projectRepositoryProvider).importZip(archive, name: name);
       await reload();
       return null;
     } on AppFailure catch (failure) {
@@ -546,7 +548,8 @@ class BackupsNotifier extends AsyncNotifier<List<BackupInfo>> {
   }
 
   Future<void> reload() async {
-    final List<BackupInfo> backups = await ref.read(backupServiceProvider).list();
+    final List<BackupInfo> backups =
+        await ref.read(backupServiceProvider).list();
     if (!_disposed) {
       state = AsyncValue<List<BackupInfo>>.data(backups);
     }
@@ -722,7 +725,8 @@ class AppTerminalApi implements TerminalApi {
 
   @override
   Future<String> storageSummary() async {
-    final StorageUsage usage = await ref.read(bootstrapProvider).workspace.measure();
+    final StorageUsage usage =
+        await ref.read(bootstrapProvider).workspace.measure();
     final NativeStorageStats? native =
         await ref.read(nativeBridgeProvider).storageStats();
     final StringBuffer buffer = StringBuffer()

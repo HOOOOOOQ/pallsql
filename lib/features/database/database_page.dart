@@ -173,7 +173,8 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
             const SizedBox(height: 16),
             PallSqlSectionHeader(
               title: 'Databases',
-              subtitle: '${overview?.databases.length ?? 0} file(s) in PALLSQL/database',
+              subtitle:
+                  '${overview?.databases.length ?? 0} file(s) in PALLSQL/database',
               trailing: TextButton.icon(
                 onPressed: _busy ? null : _createDatabase,
                 icon: const Icon(Icons.add_rounded, size: 15),
@@ -181,7 +182,8 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
                 style: TextButton.styleFrom(
                   foregroundColor: PallSqlColors.accent,
                   minimumSize: Size.zero,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
               ),
@@ -217,7 +219,9 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
                       onPressed: () async {
                         final ScaffoldMessengerState messenger =
                             ScaffoldMessenger.of(context);
-                        await ref.read(databaseRepositoryProvider).clearHistory();
+                        await ref
+                            .read(databaseRepositoryProvider)
+                            .clearHistory();
                         if (!mounted) {
                           return;
                         }
@@ -250,7 +254,8 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
               )
             else
               PallSqlCard(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
@@ -344,5 +349,6 @@ class AppBootstrapRef {
 
   final WidgetRef ref;
 
-  Directory get backupsDirectory => ref.read(bootstrapProvider).workspace.backups;
+  Directory get backupsDirectory =>
+      ref.read(bootstrapProvider).workspace.backups;
 }

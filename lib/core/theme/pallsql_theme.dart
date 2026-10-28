@@ -68,7 +68,8 @@ class PallSqlTheme {
         thickness: 1,
         space: 1,
       ),
-      iconTheme: const IconThemeData(color: PallSqlColors.textSecondary, size: 20),
+      iconTheme:
+          const IconThemeData(color: PallSqlColors.textSecondary, size: 20),
       snackBarTheme: const SnackBarThemeData(
         backgroundColor: PallSqlColors.surfaceElevated,
         contentTextStyle: TextStyle(color: PallSqlColors.textPrimary),

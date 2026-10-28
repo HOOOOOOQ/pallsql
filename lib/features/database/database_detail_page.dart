@@ -58,7 +58,8 @@ class _DatabaseDetailPageState extends ConsumerState<DatabaseDetailPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final List<TableInfo> tables = await _repository.listTables(widget.databaseName);
+      final List<TableInfo> tables =
+          await _repository.listTables(widget.databaseName);
       if (!mounted) {
         return;
       }
@@ -113,8 +114,8 @@ class _DatabaseDetailPageState extends ConsumerState<DatabaseDetailPage> {
       _showError('Enter a SQL statement');
       return;
     }
-    final bool destructive =
-        SqlUtils.splitStatements(sql).any((SqlStatement s) => SqlUtils.isDestructive(s.sql));
+    final bool destructive = SqlUtils.splitStatements(sql)
+        .any((SqlStatement s) => SqlUtils.isDestructive(s.sql));
     if (destructive) {
       final bool confirmed = await showConfirmDialog(
         context: context,
@@ -154,7 +155,8 @@ class _DatabaseDetailPageState extends ConsumerState<DatabaseDetailPage> {
   }
 
   Future<void> _refreshStructure() async {
-    final List<TableInfo> tables = await _repository.listTables(widget.databaseName);
+    final List<TableInfo> tables =
+        await _repository.listTables(widget.databaseName);
     if (!mounted) {
       return;
     }
@@ -173,14 +175,14 @@ class _DatabaseDetailPageState extends ConsumerState<DatabaseDetailPage> {
       label: 'CREATE TABLE statement',
       message: 'Example: CREATE TABLE notes (id INTEGER PRIMARY KEY '
           'AUTOINCREMENT, body TEXT NOT NULL)',
-      initialValue: 'CREATE TABLE notes (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n'
+      initialValue:
+          'CREATE TABLE notes (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n'
           '  body TEXT NOT NULL,\n  created_at TEXT NOT NULL\n);',
       maxLines: 8,
       confirmLabel: 'Run',
       keyboardType: TextInputType.multiline,
-      validator: (String value) => value.trim().isEmpty
-          ? 'A CREATE TABLE statement is required'
-          : null,
+      validator: (String value) =>
+          value.trim().isEmpty ? 'A CREATE TABLE statement is required' : null,
     );
     if (sql == null || !mounted) {
       return;
@@ -274,7 +276,8 @@ class _DatabaseDetailPageState extends ConsumerState<DatabaseDetailPage> {
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           backgroundColor: PallSqlColors.surfaceElevated,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           title: Text(
             'Insert into ${table.name}',
             style: const TextStyle(
@@ -301,8 +304,7 @@ class _DatabaseDetailPageState extends ConsumerState<DatabaseDetailPage> {
                         ),
                         decoration: InputDecoration(
                           isDense: true,
-                          labelText:
-                              '${column.name} (${column.summary})',
+                          labelText: '${column.name} (${column.summary})',
                           labelStyle: const TextStyle(
                             color: PallSqlColors.textSecondary,
                             fontSize: 11.5,
@@ -701,9 +703,8 @@ class _DatabaseDetailPageState extends ConsumerState<DatabaseDetailPage> {
       message: 'rowid is the hidden primary key of the table.',
       keyboardType: TextInputType.number,
       confirmLabel: 'Delete',
-      validator: (String value) => int.tryParse(value.trim()) == null
-          ? 'Enter a numeric rowid'
-          : null,
+      validator: (String value) =>
+          int.tryParse(value.trim()) == null ? 'Enter a numeric rowid' : null,
     );
     if (raw == null || !mounted) {
       return;

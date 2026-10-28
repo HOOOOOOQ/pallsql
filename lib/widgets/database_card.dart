@@ -62,7 +62,8 @@ class DatabaseCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    const PallSqlPill(label: 'SQLite', icon: Icons.memory_rounded),
+                    const PallSqlPill(
+                        label: 'SQLite', icon: Icons.memory_rounded),
                   ],
                 ),
                 const SizedBox(height: 3),
@@ -113,7 +114,8 @@ class EngineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool available = availability.available;
-    final Color color = available ? PallSqlColors.success : PallSqlColors.warning;
+    final Color color =
+        available ? PallSqlColors.success : PallSqlColors.warning;
     return PallSqlCard(
       accentColor: available ? null : PallSqlColors.warning,
       child: Column(
@@ -161,7 +163,9 @@ class EngineCard extends StatelessWidget {
               availability.reason!,
               style: TextStyle(
                 fontSize: 11.5,
-                color: available ? PallSqlColors.textSecondary : PallSqlColors.warning,
+                color: available
+                    ? PallSqlColors.textSecondary
+                    : PallSqlColors.warning,
                 height: 1.4,
               ),
             ),

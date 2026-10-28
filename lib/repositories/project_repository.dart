@@ -15,7 +15,8 @@ import '../services/workspace_service.dart';
 /// Starter content offered when creating a project.
 enum ProjectTemplate {
   staticSite('Static HTML site', 'index.html, style.css and a small script'),
-  phpHello('PHP hello world', 'A minimal index.php that prints the PHP version'),
+  phpHello(
+      'PHP hello world', 'A minimal index.php that prints the PHP version'),
   htmlForm('HTML form', 'A form posting to a PHP endpoint'),
   databaseSample(
     'Database sample',
@@ -56,9 +57,11 @@ class ProjectRepository {
         projects.addAll(Project.decodeList(await metadataFile.readAsString()));
       }
     } on FormatException {
-      _logs.warning(LogSource.app, 'Project metadata was corrupted; rebuilding');
+      _logs.warning(
+          LogSource.app, 'Project metadata was corrupted; rebuilding');
     } on ValidationFailure catch (failure) {
-      _logs.warning(LogSource.app, 'Project metadata rejected: ${failure.message}');
+      _logs.warning(
+          LogSource.app, 'Project metadata rejected: ${failure.message}');
     }
     return _syncWithDisk(projects);
   }
@@ -135,14 +138,16 @@ class ProjectRepository {
     final String base = Validators.slugify(name);
     String directory = base;
     int suffix = 2;
-    while (await Directory(guard.resolveRelative('projects/$directory')).exists()) {
+    while (await Directory(guard.resolveRelative('projects/$directory'))
+        .exists()) {
       directory = '$base-$suffix';
       suffix++;
     }
     final String projectPath = guard.resolveRelative('projects/$directory');
     final Directory projectDirectory = Directory(projectPath);
     await projectDirectory.create(recursive: true);
-    for (final MapEntry<String, String> entry in _templateFiles(template).entries) {
+    for (final MapEntry<String, String> entry
+        in _templateFiles(template).entries) {
       final File file = File(p.join(projectPath, entry.key));
       await file.parent.create(recursive: true);
       await file.writeAsString(entry.value, flush: true);
@@ -172,7 +177,8 @@ class ProjectRepository {
     final String base = Validators.slugify(newName);
     String directory = base;
     int suffix = 2;
-    while (await Directory(guard.resolveRelative('projects/$directory')).exists()) {
+    while (await Directory(guard.resolveRelative('projects/$directory'))
+        .exists()) {
       directory = '$base-$suffix';
       suffix++;
     }
@@ -236,8 +242,8 @@ class ProjectRepository {
         throw const ArchiveFailure('Archive expands beyond the size limit');
       }
     }
-    final String projectName = (name ?? p.basenameWithoutExtension(archive.path))
-        .trim();
+    final String projectName =
+        (name ?? p.basenameWithoutExtension(archive.path)).trim();
     final String? nameError = Validators.projectNameError(projectName);
     if (nameError != null) {
       throw ValidationFailure(nameError);
@@ -246,7 +252,8 @@ class ProjectRepository {
     final String base = Validators.slugify(projectName);
     String directory = base;
     int suffix = 2;
-    while (await Directory(guard.resolveRelative('projects/$directory')).exists()) {
+    while (await Directory(guard.resolveRelative('projects/$directory'))
+        .exists()) {
       directory = '$base-$suffix';
       suffix++;
     }
@@ -302,15 +309,15 @@ class ProjectRepository {
       throw const NotFoundFailure('Project folder not found');
     }
     final Archive archive = Archive();
-    final List<FileSystemEntity> entities = await directory
-        .list(recursive: true, followLinks: false)
-        .toList();
+    final List<FileSystemEntity> entities =
+        await directory.list(recursive: true, followLinks: false).toList();
     for (final FileSystemEntity entity in entities) {
       final String relative = guard
           .toRelative(entity.path)
           .replaceFirst('projects/${project.directory}/', '');
       if (entity is Directory) {
-        archive.addFile(ArchiveFile('${project.directory}/$relative/', 0, <int>[]));
+        archive.addFile(
+            ArchiveFile('${project.directory}/$relative/', 0, <int>[]));
       } else if (entity is File) {
         final List<int> data = await entity.readAsBytes();
         archive.addFile(

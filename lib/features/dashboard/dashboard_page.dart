@@ -37,7 +37,8 @@ class DashboardPage extends ConsumerStatefulWidget {
 class _DashboardPageState extends ConsumerState<DashboardPage> {
   bool _busy = false;
 
-  Future<void> _run(Future<String?> Function() action, {String? success}) async {
+  Future<void> _run(Future<String?> Function() action,
+      {String? success}) async {
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
     setState(() => _busy = true);
     final String? error = await action();
@@ -54,7 +55,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
   Future<void> _openWebsite() async {
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-    final bool opened = await ref.read(webServerProvider.notifier).openWebsite();
+    final bool opened =
+        await ref.read(webServerProvider.notifier).openWebsite();
     if (!mounted || opened) {
       return;
     }
@@ -223,7 +225,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ServiceControlButton(
                   label: 'Query logs',
                   icon: Icons.receipt_long_rounded,
-                  onPressed: () => _push(const LogsPage(initialSource: LogSource.database)),
+                  onPressed: () =>
+                      _push(const LogsPage(initialSource: LogSource.database)),
                 ),
               ],
             ),
@@ -275,7 +278,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     label: 'Device free',
                     value: storage.valueOrNull?.deviceFreeBytes == null
                         ? 'n/a'
-                        : Formatters.bytes(storage.valueOrNull!.deviceFreeBytes!),
+                        : Formatters.bytes(
+                            storage.valueOrNull!.deviceFreeBytes!),
                     monospace: true,
                   ),
                   PallSqlKeyValue(
@@ -332,7 +336,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 onPressed: () => _push(const LogsPage()),
                 style: TextButton.styleFrom(
                   minimumSize: Size.zero,
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: const Text('All logs', style: TextStyle(fontSize: 11)),

@@ -25,12 +25,14 @@ class _FakePhpBridge implements PhpBridge {
     return PhpCgiResponse(
       statusCode: 200,
       headers: const <String, String>{'Content-Type': 'text/plain'},
-      body: utf8.encode('hello from php: ${request.method} ${request.uri.path}'),
+      body:
+          utf8.encode('hello from php: ${request.method} ${request.uri.path}'),
     );
   }
 }
 
-Future<HttpClientResponse> get(String url, {Map<String, String>? headers}) async {
+Future<HttpClientResponse> get(String url,
+    {Map<String, String>? headers}) async {
   final HttpClient client = HttpClient();
   final HttpClientRequest request = await client.getUrl(Uri.parse(url));
   headers?.forEach(request.headers.set);
@@ -69,8 +71,7 @@ void main() {
   });
 
   test('serves the directory index with the right content type', () async {
-    final HttpClientResponse response =
-        await get('http://127.0.0.1:$port/');
+    final HttpClientResponse response = await get('http://127.0.0.1:$port/');
     expect(response.statusCode, 200);
     expect(response.headers.contentType?.mimeType, 'text/html');
     final String body = await utf8.decodeStream(response);
@@ -248,11 +249,11 @@ void main() {
   });
 
   test('switches the document root', () async {
-    final Directory other = await Directory.systemTemp.createTemp('pallsql_www2_');
+    final Directory other =
+        await Directory.systemTemp.createTemp('pallsql_www2_');
     await File('${other.path}/index.html').writeAsString('<h1>second</h1>');
     await service.switchDocumentRoot(other, port: port, lanAccess: false);
-    final HttpClientResponse response =
-        await get('http://127.0.0.1:$port/');
+    final HttpClientResponse response = await get('http://127.0.0.1:$port/');
     final String body = await utf8.decodeStream(response);
     expect(body, contains('second'));
     await other.delete(recursive: true);

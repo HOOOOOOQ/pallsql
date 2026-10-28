@@ -93,7 +93,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   inactiveColor: PallSqlColors.surfaceMuted,
                   onChanged: (double value) {
                     ref.read(settingsProvider.notifier).update(
-                          settings.copyWith(editorFontSize: value.roundToDouble()),
+                          settings.copyWith(
+                              editorFontSize: value.roundToDouble()),
                         );
                   },
                 ),
@@ -184,7 +185,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   monospace: true,
                 ),
                 Slider(
-                  value: settings.maxLogEntries.toDouble().clamp(50.0, 2000.0).toDouble(),
+                  value: settings.maxLogEntries
+                      .toDouble()
+                      .clamp(50.0, 2000.0)
+                      .toDouble(),
                   min: 50,
                   max: 2000,
                   divisions: 39,
@@ -228,10 +232,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   onTap: () async {
                     final ScaffoldMessengerState messenger =
                         ScaffoldMessenger.of(context);
-                    final int removed = await ref
-                        .read(bootstrapProvider)
-                        .workspace
-                        .clearTemp();
+                    final int removed =
+                        await ref.read(bootstrapProvider).workspace.clearTemp();
                     if (!mounted) {
                       return;
                     }
@@ -258,7 +260,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 PallSqlKeyValue(
                   label: 'Database engine',
                   value: '${database?.sqlite.engine.label ?? 'SQLite'} '
-                      '${database?.sqlite.version ?? ''}'.trim(),
+                          '${database?.sqlite.version ?? ''}'
+                      .trim(),
                   monospace: true,
                 ),
                 PallSqlKeyValue(

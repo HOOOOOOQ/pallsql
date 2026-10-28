@@ -57,7 +57,8 @@ enum LogSource {
   static LogSource fromLabel(String value) {
     final String normalized = value.trim().toUpperCase();
     for (final LogSource source in LogSource.values) {
-      if (source.label == normalized || source.name.toUpperCase() == normalized) {
+      if (source.label == normalized ||
+          source.name.toUpperCase() == normalized) {
         return source;
       }
     }
@@ -117,8 +118,8 @@ class LogEntry {
 
   static LogEntry fromJson(Map<String, Object?> json) {
     return LogEntry(
-      timestamp:
-          DateTime.tryParse(json['timestamp']?.toString() ?? '') ?? DateTime.now(),
+      timestamp: DateTime.tryParse(json['timestamp']?.toString() ?? '') ??
+          DateTime.now(),
       level: LogLevel.fromName(json['level']?.toString() ?? 'info'),
       source: LogSource.fromLabel(json['source']?.toString() ?? 'app'),
       message: json['message']?.toString() ?? '',

@@ -26,7 +26,8 @@ class FileRepository implements FileSystemController {
 
   String get rootPath => _workspace.rootPath;
 
-  String absolutePath(String relativePath) => guard.resolveRelative(relativePath);
+  String absolutePath(String relativePath) =>
+      guard.resolveRelative(relativePath);
 
   @override
   Future<List<FileEntry>> list(
@@ -242,7 +243,8 @@ class FileRepository implements FileSystemController {
 
   @override
   Future<void> delete(String relativePath) async {
-    if (relativePath.isEmpty || guard.resolveRelative(relativePath) == guard.normalizedRoot) {
+    if (relativePath.isEmpty ||
+        guard.resolveRelative(relativePath) == guard.normalizedRoot) {
       throw const ValidationFailure('The workspace root cannot be deleted');
     }
     final String target = absolutePath(relativePath);
@@ -290,25 +292,29 @@ class FileRepository implements FileSystemController {
         ),
       );
     }
-    hits.sort((FileEntry a, FileEntry b) => a.relativePath.compareTo(b.relativePath));
+    hits.sort(
+        (FileEntry a, FileEntry b) => a.relativePath.compareTo(b.relativePath));
     return hits;
   }
 
   /// Copies a workspace file out to [targetDirectory] (used for export).
-  Future<File> exportFile(String relativePath, Directory targetDirectory) async {
+  Future<File> exportFile(
+      String relativePath, Directory targetDirectory) async {
     final File source = File(absolutePath(relativePath));
     if (!await source.exists()) {
       throw const NotFoundFailure('File not found');
     }
     await targetDirectory.create(recursive: true);
-    final File target = File(p.join(targetDirectory.path, p.basename(source.path)));
+    final File target =
+        File(p.join(targetDirectory.path, p.basename(source.path)));
     await source.copy(target.path);
     return target;
   }
 
   /// Moves a file that Android's document picker copied into `tmp` into the
   /// workspace proper.
-  Future<FileEntry> importPickedFile(String temporaryPath, String destinationRelative) async {
+  Future<FileEntry> importPickedFile(
+      String temporaryPath, String destinationRelative) async {
     final File source = File(temporaryPath);
     if (!await source.exists()) {
       throw const NotFoundFailure('Imported file is missing');

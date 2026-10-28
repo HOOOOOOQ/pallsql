@@ -23,7 +23,8 @@ class FileEntry {
   String get extension =>
       isDirectory ? '' : p.extension(name).replaceFirst('.', '').toLowerCase();
 
-  bool get isEditable => !isDirectory && AppInfo.editableExtensions.contains(extension);
+  bool get isEditable =>
+      !isDirectory && AppInfo.editableExtensions.contains(extension);
 
   bool get isDatabaseFile =>
       !isDirectory && (extension == 'db' || extension == 'sqlite');

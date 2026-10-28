@@ -141,8 +141,9 @@ class SyntaxHighlighter {
         }
       }
       final Color? color = group == null ? null : _colorFor(group);
-      final FontWeight weight =
-          group == 'keyword' || group == 'tag' ? FontWeight.w600 : FontWeight.w400;
+      final FontWeight weight = group == 'keyword' || group == 'tag'
+          ? FontWeight.w600
+          : FontWeight.w400;
       final FontStyle fontStyle =
           group == 'comment' ? FontStyle.italic : FontStyle.normal;
       spans.add(

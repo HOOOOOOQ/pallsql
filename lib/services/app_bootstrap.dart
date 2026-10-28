@@ -98,8 +98,7 @@ class AppBootstrap {
       'PALLSQL starting in ${workspace.rootPath}',
     );
 
-    final NativeBridge bridge =
-        native ?? NativeBridge(logs: logs);
+    final NativeBridge bridge = native ?? NativeBridge(logs: logs);
     final NativeDeviceInfo? deviceInfo = await bridge.deviceInfo();
     if (deviceInfo != null) {
       logs.info(
@@ -113,11 +112,13 @@ class AppBootstrap {
       workspace: workspace,
       logs: logs,
       configuredRelativePath: settings.phpBinaryPath,
-      nativeLibraryDirProvider: bridge.isAvailable ? bridge.nativeLibraryDir : null,
+      nativeLibraryDirProvider:
+          bridge.isAvailable ? bridge.nativeLibraryDir : null,
     );
     await php.refresh();
 
-    final FileRepository files = FileRepository(workspace: workspace, logs: logs);
+    final FileRepository files =
+        FileRepository(workspace: workspace, logs: logs);
     final ProjectRepository projects =
         ProjectRepository(workspace: workspace, logs: logs);
     final SqliteDatabaseRepository databases = SqliteDatabaseRepository(

@@ -49,7 +49,9 @@ void main() {
       const ServiceStatus status = ServiceStatus.error('port busy');
       expect(status.copyWith(state: ServiceState.stopped).message, 'port busy');
       expect(
-        status.copyWith(state: ServiceState.stopped, clearMessage: true).message,
+        status
+            .copyWith(state: ServiceState.stopped, clearMessage: true)
+            .message,
         isNull,
       );
     });

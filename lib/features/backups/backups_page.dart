@@ -57,7 +57,8 @@ class _BackupsPageState extends ConsumerState<BackupsPage> {
     final bool confirmed = await showConfirmDialog(
       context: context,
       title: 'Restore ${backup.fileName}?',
-      message: '${validation.entryCount} files will be written over the current '
+      message:
+          '${validation.entryCount} files will be written over the current '
           'workspace. A safety backup of the current state is created first.',
       confirmLabel: 'Restore',
       destructive: true,

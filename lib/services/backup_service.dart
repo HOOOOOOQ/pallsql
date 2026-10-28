@@ -24,8 +24,8 @@ class BackupValidation {
   final int totalBytes;
   final List<String> issues;
 
-  static const BackupValidation invalid =
-      BackupValidation(valid: false, entryCount: 0, totalBytes: 0, issues: <String>[]);
+  static const BackupValidation invalid = BackupValidation(
+      valid: false, entryCount: 0, totalBytes: 0, issues: <String>[]);
 }
 
 /// Creates, inspects and restores ZIP backups of the workspace.
@@ -76,7 +76,8 @@ class BackupService {
         ),
       );
     }
-    backups.sort((BackupInfo a, BackupInfo b) => b.createdAt.compareTo(a.createdAt));
+    backups.sort(
+        (BackupInfo a, BackupInfo b) => b.createdAt.compareTo(a.createdAt));
     return backups;
   }
 
@@ -101,7 +102,8 @@ class BackupService {
     final Archive archive = Archive();
     int bytes = 0;
     for (final String root in roots) {
-      final Directory directory = Directory(_workspace.guard.resolveRelative(root));
+      final Directory directory =
+          Directory(_workspace.guard.resolveRelative(root));
       if (!await directory.exists()) {
         continue;
       }
@@ -157,7 +159,8 @@ class BackupService {
     }
     Archive archive;
     try {
-      archive = ZipDecoder().decodeBytes(await file.readAsBytes(), verify: true);
+      archive =
+          ZipDecoder().decodeBytes(await file.readAsBytes(), verify: true);
     } on Object catch (error) {
       return BackupValidation(
         valid: false,

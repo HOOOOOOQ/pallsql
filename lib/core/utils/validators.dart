@@ -2,9 +2,11 @@
 class Validators {
   const Validators._();
 
-  static final RegExp _projectName = RegExp(r'^[A-Za-z0-9][A-Za-z0-9 _.\-]{0,63}$');
+  static final RegExp _projectName =
+      RegExp(r'^[A-Za-z0-9][A-Za-z0-9 _.\-]{0,63}$');
   static final RegExp _databaseName = RegExp(r'^[A-Za-z_][A-Za-z0-9_]{0,62}$');
-  static final RegExp _safeDirectory = RegExp(r'^[A-Za-z0-9][A-Za-z0-9 _.\-]{0,63}$');
+  static final RegExp _safeDirectory =
+      RegExp(r'^[A-Za-z0-9][A-Za-z0-9 _.\-]{0,63}$');
   static final RegExp _controlChars = RegExp(r'[\u0000-\u001f]');
 
   static const Set<String> _reservedNames = <String>{
@@ -69,7 +71,9 @@ class Validators {
   /// A relative workspace path without traversal or absolute prefixes.
   static bool isSafeRelativePath(String value) {
     final String trimmed = value.trim();
-    if (trimmed.isEmpty || trimmed.startsWith('/') || trimmed.startsWith('\\')) {
+    if (trimmed.isEmpty ||
+        trimmed.startsWith('/') ||
+        trimmed.startsWith('\\')) {
       return false;
     }
     if (RegExp(r'^[A-Za-z]:').hasMatch(trimmed)) {
@@ -130,7 +134,8 @@ class Validators {
     return null;
   }
 
-  static bool isValidDatabaseName(String name) => databaseNameError(name) == null;
+  static bool isValidDatabaseName(String name) =>
+      databaseNameError(name) == null;
 
   /// Converts a project name into a filesystem friendly folder name.
   static String slugify(String value) {

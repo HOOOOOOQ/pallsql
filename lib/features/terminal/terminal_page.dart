@@ -172,7 +172,8 @@ class _TerminalPageState extends ConsumerState<TerminalPage> {
                       ),
                       IconButton(
                         tooltip: 'Run',
-                        icon: const Icon(Icons.keyboard_return_rounded, size: 18),
+                        icon:
+                            const Icon(Icons.keyboard_return_rounded, size: 18),
                         color: PallSqlColors.accent,
                         onPressed: () => _submit(_input.text),
                       ),

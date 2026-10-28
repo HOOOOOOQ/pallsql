@@ -115,7 +115,8 @@ class ServiceAggregate {
 
   bool get anyBusy => webServer.isBusy || phpRuntime.isBusy || database.isBusy;
 
-  bool get canStartAll => !anyBusy && (!webServer.isRunning || !database.isRunning);
+  bool get canStartAll =>
+      !anyBusy && (!webServer.isRunning || !database.isRunning);
 
   bool get canStopAll => !anyBusy && (webServer.canStop || database.canStop);
 

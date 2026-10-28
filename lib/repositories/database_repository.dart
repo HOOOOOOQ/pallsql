@@ -56,8 +56,7 @@ class SqliteDatabaseRepository implements DatabaseEngine {
       final List<Map<String, Object?>> rows =
           await probe.rawQuery('SELECT sqlite_version() AS version');
       await probe.close();
-      final Object? version =
-          rows.isEmpty ? null : rows.first['version'];
+      final Object? version = rows.isEmpty ? null : rows.first['version'];
       return EngineAvailability(
         engine: DatabaseEngineId.sqlite,
         available: true,
@@ -185,7 +184,8 @@ class SqliteDatabaseRepository implements DatabaseEngine {
     } on FileSystemException catch (error) {
       throw AppFailure('Could not list databases', details: error.message);
     }
-    databases.sort((DatabaseInfo a, DatabaseInfo b) => a.name.compareTo(b.name));
+    databases
+        .sort((DatabaseInfo a, DatabaseInfo b) => a.name.compareTo(b.name));
     return databases;
   }
 
@@ -313,14 +313,14 @@ class SqliteDatabaseRepository implements DatabaseEngine {
               await db.rawQuery(statement.sql);
           columns = _columnsOf(result, statement.sql);
           rows = result
-              .map((Map<String, Object?> row) =>
-                  columns.map((String column) => _stringify(row[column])).toList())
+              .map((Map<String, Object?> row) => columns
+                  .map((String column) => _stringify(row[column]))
+                  .toList())
               .toList(growable: false);
         } else if (statement.kind == SqlStatementKind.mutation) {
           final int affected = await db.rawUpdate(statement.sql);
           rowsAffected += affected;
-          if (statement.keyword == 'INSERT' ||
-              statement.keyword == 'REPLACE') {
+          if (statement.keyword == 'INSERT' || statement.keyword == 'REPLACE') {
             final List<Map<String, Object?>> idRows =
                 await db.rawQuery('SELECT last_insert_rowid() AS id');
             final Object? id = idRows.isEmpty ? null : idRows.first['id'];
@@ -343,7 +343,8 @@ class SqliteDatabaseRepository implements DatabaseEngine {
     stopwatch.stop();
     final QueryResult result = QueryResult(
       columns: error == null ? columns : const <String>[],
-      rows: error == null && columns.isNotEmpty ? rows : const <List<String?>>[],
+      rows:
+          error == null && columns.isNotEmpty ? rows : const <List<String?>>[],
       statements: statements.length,
       duration: stopwatch.elapsed,
       rowsAffected: rowsAffected,
@@ -380,7 +381,8 @@ class SqliteDatabaseRepository implements DatabaseEngine {
     }
     final SqlStatement? forbidden = SqlUtils.findForbidden(statements);
     if (forbidden != null) {
-      throw SqlRejectedFailure('${forbidden.keyword} is not allowed in imports');
+      throw SqlRejectedFailure(
+          '${forbidden.keyword} is not allowed in imports');
     }
     final Database db = await _existingDatabase(database);
     final Stopwatch stopwatch = Stopwatch()..start();
@@ -461,12 +463,11 @@ class SqliteDatabaseRepository implements DatabaseEngine {
     }
     final String columns =
         values.keys.map(Validators.quoteSqlIdentifier).join(', ');
-    final String placeholders =
-        values.keys.map((String _) => '?').join(', ');
+    final String placeholders = values.keys.map((String _) => '?').join(', ');
     return _runParameterised(
       database,
       'INSERT INTO ${Validators.quoteSqlIdentifier(table)} ($columns) '
-          'VALUES ($placeholders)',
+      'VALUES ($placeholders)',
       values.values.toList(),
       allowDestructive: allowDestructive,
     );
@@ -490,7 +491,7 @@ class SqliteDatabaseRepository implements DatabaseEngine {
     return _runParameterised(
       database,
       'UPDATE ${Validators.quoteSqlIdentifier(table)} SET $assignments '
-          'WHERE ${Validators.quoteSqlIdentifier(keyColumn)} = ?',
+      'WHERE ${Validators.quoteSqlIdentifier(keyColumn)} = ?',
       arguments,
       allowDestructive: allowDestructive,
     );
@@ -506,7 +507,7 @@ class SqliteDatabaseRepository implements DatabaseEngine {
     return _runParameterised(
       database,
       'DELETE FROM ${Validators.quoteSqlIdentifier(table)} '
-          'WHERE ${Validators.quoteSqlIdentifier(keyColumn)} = ?',
+      'WHERE ${Validators.quoteSqlIdentifier(keyColumn)} = ?',
       <Object?>[keyValue],
       allowDestructive: allowDestructive,
     );
@@ -540,7 +541,8 @@ class SqliteDatabaseRepository implements DatabaseEngine {
   }
 
   /// Generates a SQL dump (schema + data) for [database].
-  Future<String> exportSql(String database, {int maxRowsPerTable = 20000}) async {
+  Future<String> exportSql(String database,
+      {int maxRowsPerTable = 20000}) async {
     final Database db = await _existingDatabase(database);
     final StringBuffer buffer = StringBuffer()
       ..writeln('-- PALLSQL SQL export')
@@ -588,7 +590,8 @@ class SqliteDatabaseRepository implements DatabaseEngine {
   }
 
   /// Copies the database file into [targetDirectory] after closing it.
-  Future<File> backupDatabase(String database, Directory targetDirectory) async {
+  Future<File> backupDatabase(
+      String database, Directory targetDirectory) async {
     final String path = _pathFor(database);
     final File source = File(path);
     if (!await source.exists()) {
@@ -651,7 +654,8 @@ class SqliteDatabaseRepository implements DatabaseEngine {
     }
     try {
       await file.parent.create(recursive: true);
-      await file.writeAsString(QueryHistoryEntry.encodeList(_history), flush: false);
+      await file.writeAsString(QueryHistoryEntry.encodeList(_history),
+          flush: false);
     } on FileSystemException {
       // Ignore persistence problems.
     }
@@ -696,11 +700,13 @@ class SqliteDatabaseRepository implements DatabaseEngine {
         }
         final List<String> parts = column.split(RegExp(r'\s+'));
         String name = parts.last;
-        if (parts.length >= 3 && parts[parts.length - 2].toUpperCase() == 'AS') {
+        if (parts.length >= 3 &&
+            parts[parts.length - 2].toUpperCase() == 'AS') {
           name = parts.last;
         }
         name = name.replaceAll('"', '').replaceAll('`', '').replaceAll("'", '');
-        if (name.isNotEmpty && RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(name)) {
+        if (name.isNotEmpty &&
+            RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(name)) {
           columns.add(name);
         }
       }
@@ -761,9 +767,11 @@ class SqliteDatabaseRepository implements DatabaseEngine {
         await db.rawQuery('PRAGMA page_size');
     final List<Map<String, Object?>> version =
         await db.rawQuery('SELECT sqlite_version() AS v');
-    final int pages = rows.isEmpty ? 0 : (rows.first['page_count'] as num?)?.toInt() ?? 0;
-    final int size =
-        pageSize.isEmpty ? 0 : (pageSize.first['page_size'] as num?)?.toInt() ?? 0;
+    final int pages =
+        rows.isEmpty ? 0 : (rows.first['page_count'] as num?)?.toInt() ?? 0;
+    final int size = pageSize.isEmpty
+        ? 0
+        : (pageSize.first['page_size'] as num?)?.toInt() ?? 0;
     return <String, Object?>{
       'engine': 'SQLite',
       'engineVersion': version.isEmpty ? null : version.first['v'],
@@ -776,7 +784,8 @@ class SqliteDatabaseRepository implements DatabaseEngine {
 
   Future<String?> _journalMode(Database db) async {
     try {
-      final List<Map<String, Object?>> rows = await db.rawQuery('PRAGMA journal_mode');
+      final List<Map<String, Object?>> rows =
+          await db.rawQuery('PRAGMA journal_mode');
       if (rows.isEmpty) {
         return null;
       }

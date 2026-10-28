@@ -22,7 +22,9 @@ class StatusDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color resolved = color ??
-        (state == null ? PallSqlColors.stopped : PallSqlTheme.stateColor(state!));
+        (state == null
+            ? PallSqlColors.stopped
+            : PallSqlTheme.stateColor(state!));
     if (!pulse) {
       return _dot(resolved);
     }

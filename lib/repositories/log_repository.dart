@@ -93,7 +93,8 @@ class LogRepository extends LogSink implements LogController {
 
   /// Keeps only entries of the given source (used by the export dialog).
   @override
-  List<LogEntry> filtered({LogLevel? level, LogSource? source, String query = ''}) {
+  List<LogEntry> filtered(
+      {LogLevel? level, LogSource? source, String query = ''}) {
     return _entries
         .where((LogEntry entry) =>
             entry.matches(query: query, level: level, source: source))

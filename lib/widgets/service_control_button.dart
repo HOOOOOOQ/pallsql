@@ -27,9 +27,11 @@ class ServiceControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color accent = destructive ? PallSqlColors.error : PallSqlColors.accent;
-    final Color foreground =
-        filled ? const Color(0xFF07130A) : (destructive ? accent : PallSqlColors.textPrimary);
+    final Color accent =
+        destructive ? PallSqlColors.error : PallSqlColors.accent;
+    final Color foreground = filled
+        ? const Color(0xFF07130A)
+        : (destructive ? accent : PallSqlColors.textPrimary);
     final EdgeInsetsGeometry padding = EdgeInsets.symmetric(
       horizontal: compact ? 12 : 16,
       vertical: compact ? 8 : 12,

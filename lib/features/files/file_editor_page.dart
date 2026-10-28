@@ -144,7 +144,8 @@ class _FileEditorPageState extends ConsumerState<FileEditorPage> {
     }
     final String text = controller.text;
     final int rawStart = controller.selection.end;
-    final int start = rawStart < 0 ? 0 : (rawStart > text.length ? text.length : rawStart);
+    final int start =
+        rawStart < 0 ? 0 : (rawStart > text.length ? text.length : rawStart);
     int index = text.indexOf(needle, start);
     if (index < 0) {
       index = text.indexOf(needle);
@@ -215,7 +216,8 @@ class _FileEditorPageState extends ConsumerState<FileEditorPage> {
 
   Future<void> _changeFontSize(double delta) async {
     final AppSettings settings = ref.read(settingsProvider);
-    final double next = (settings.editorFontSize + delta).clamp(10.0, 28.0).toDouble();
+    final double next =
+        (settings.editorFontSize + delta).clamp(10.0, 28.0).toDouble();
     await ref
         .read(settingsProvider.notifier)
         .update(settings.copyWith(editorFontSize: next));
@@ -241,7 +243,9 @@ class _FileEditorPageState extends ConsumerState<FileEditorPage> {
             IconButton(
               tooltip: 'Find and replace',
               icon: Icon(
-                _searchVisible ? Icons.search_off_rounded : Icons.search_rounded,
+                _searchVisible
+                    ? Icons.search_off_rounded
+                    : Icons.search_rounded,
                 size: 19,
               ),
               onPressed: () => setState(() => _searchVisible = !_searchVisible),
@@ -355,9 +359,8 @@ class _FileEditorPageState extends ConsumerState<FileEditorPage> {
 
   Widget _buildStatusBar(AppSettings settings) {
     final HighlightingTextController? controller = _controller;
-    final int lines = controller == null
-        ? 0
-        : controller.text.split('\n').length;
+    final int lines =
+        controller == null ? 0 : controller.text.split('\n').length;
     final int chars = controller?.text.length ?? 0;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -406,7 +409,8 @@ class _FileEditorPageState extends ConsumerState<FileEditorPage> {
             ),
             onPressed: () {
               ref.read(settingsProvider.notifier).update(
-                    settings.copyWith(showLineNumbers: !settings.showLineNumbers),
+                    settings.copyWith(
+                        showLineNumbers: !settings.showLineNumbers),
                   );
             },
           ),
@@ -428,7 +432,8 @@ class _FileEditorPageState extends ConsumerState<FileEditorPage> {
           if (_dirty)
             const Padding(
               padding: EdgeInsets.only(left: 4),
-              child: PallSqlPill(label: 'Unsaved', color: PallSqlColors.warning),
+              child:
+                  PallSqlPill(label: 'Unsaved', color: PallSqlColors.warning),
             ),
         ],
       ),
