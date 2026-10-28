@@ -7,6 +7,7 @@ import 'package:pallsql/app.dart';
 import 'package:pallsql/models/service_status.dart';
 import 'package:pallsql/providers/app_providers.dart';
 import 'package:pallsql/services/app_bootstrap.dart';
+import 'package:pallsql/widgets/pallsql_bottom_navigation.dart';
 import 'package:pallsql/widgets/pallsql_card.dart';
 
 import 'support/test_bootstrap.dart';
@@ -55,7 +56,12 @@ void main() {
       (WidgetTester tester) async {
     await pumpApp(tester);
 
-    await tester.tap(find.byIcon(Icons.dns_rounded).last);
+    final Finder serversTab = find.descendant(
+      of: find.byType(PallSQLBottomNavigation),
+      matching: find.byIcon(Icons.dns_rounded),
+    );
+    expect(serversTab, findsOneWidget);
+    await tester.tap(serversTab);
     for (int i = 0; i < 6; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
