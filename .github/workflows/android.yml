@@ -1,0 +1,169 @@
+name: Android CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.47.8
+  JAVA_VERSION: "17"
+
+jobs:
+  quality:
+    name: Analyze and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Static analysis
+        run: flutter analyze
+
+      - name: Unit and service tests
+        run: flutter test --reporter expanded
+
+      - name: Upload quality logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PALLSQL-quality-logs
+          path: |
+            **/*.log
+            pubspec.lock
+          if-no-files-found: ignore
+          retention-days: 7
+
+  apk:
+    name: Build APKs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Set up Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties', 'pubspec.yaml') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Restore Gradle wrapper when missing
+        run: |
+          set -euo pipefail
+          if [ -x android/gradlew ]; then
+            echo "Gradle wrapper already present."
+            exit 0
+          fi
+          # The Gradle wrapper binaries are generated, not committed. Ask the
+          # Flutter tool to create a throwaway project and copy only the
+          # wrapper files into this android/ folder.
+          tmp="$(mktemp -d)"
+          flutter create --platforms=android --project-name pallsql --org com.pallsql "$tmp/bootstrap"
+          mkdir -p android/gradle/wrapper
+          cp -R "$tmp/bootstrap/android/gradle/wrapper/." android/gradle/wrapper/ || true
+          cp "$tmp/bootstrap/android/gradlew" android/gradlew || true
+          cp "$tmp/bootstrap/android/gradlew.bat" android/gradlew.bat || true
+          chmod +x android/gradlew || true
+          ls -la android/gradle/wrapper android/gradlew 2>/dev/null || true
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Verify APK artifacts
+        run: |
+          set -euo pipefail
+          debug=build/app/outputs/flutter-apk/app-debug.apk
+          release=build/app/outputs/flutter-apk/app-release.apk
+          for f in "$debug" "$release"; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Missing APK: $f"
+              exit 1
+            fi
+            size=$(stat -c%s "$f")
+            echo "$f -> $size bytes"
+            if [ "$size" -lt 1000000 ]; then
+              echo "::error::$f is smaller than 1 MB, it cannot be a real Flutter APK"
+              exit 1
+            fi
+          done
+          mkdir -p artifacts
+          cp "$debug" artifacts/PALLSQL-debug.apk
+          cp "$release" artifacts/PALLSQL-release.apk
+          sha256sum artifacts/*.apk > artifacts/SHA256SUMS.txt
+          cat artifacts/SHA256SUMS.txt
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PALLSQL-Android-APK
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PALLSQL-build-logs
+          path: |
+            build/**/*.log
+            android/**/build/**/*.log
+            **/gradle*.log
+          if-no-files-found: ignore
+          retention-days: 7

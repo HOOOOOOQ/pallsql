@@ -1,0 +1,23 @@
+include: package:flutter_lints/flutter.yaml
+
+# A few purely stylistic lints are turned off so that the analyzer output stays
+# focused on correctness. Formatting is enforced separately in CI with
+# `dart format --set-exit-if-changed`.
+linter:
+  rules:
+    prefer_const_constructors: false
+    prefer_const_constructors_in_immutables: false
+    prefer_const_declarations: false
+    prefer_const_literals_to_create_immutables: false
+    sort_child_properties_last: false
+    use_super_parameters: false
+    avoid_unnecessary_containers: false
+    directives_ordering: false
+    flutter_style_todos: false
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+  errors:
+    todo: ignore

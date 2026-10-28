@@ -1,0 +1,144 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to publish (for example v0.1.0)
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: 3.47.8
+  JAVA_VERSION: "17"
+
+jobs:
+  release:
+    name: Build and publish release APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag
+        id: ref
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Static analysis
+        run: flutter analyze
+
+      - name: Tests
+        run: flutter test --reporter expanded
+
+      - name: Restore Gradle wrapper when missing
+        run: |
+          set -euo pipefail
+          if [ -x android/gradlew ]; then
+            echo "Gradle wrapper already present."
+            exit 0
+          fi
+          tmp="$(mktemp -d)"
+          flutter create --platforms=android --project-name pallsql --org com.pallsql "$tmp/bootstrap"
+          mkdir -p android/gradle/wrapper
+          cp -R "$tmp/bootstrap/android/gradle/wrapper/." android/gradle/wrapper/ || true
+          cp "$tmp/bootstrap/android/gradlew" android/gradlew || true
+          cp "$tmp/bootstrap/android/gradlew.bat" android/gradlew.bat || true
+          chmod +x android/gradlew || true
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Verify release APK
+        run: |
+          set -euo pipefail
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          test -f "$apk" || { echo "::error::release APK was not produced"; exit 1; }
+          size=$(stat -c%s "$apk")
+          echo "APK size: $size bytes"
+          test "$size" -ge 1000000 || { echo "::error::APK is implausibly small"; exit 1; }
+          mkdir -p artifacts
+          cp "$apk" artifacts/PALLSQL-${{ steps.ref.outputs.tag }}.apk
+          sha256sum artifacts/*.apk > artifacts/SHA256SUMS.txt
+          cat artifacts/SHA256SUMS.txt
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PALLSQL-release-${{ steps.ref.outputs.tag }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.ref.outputs.tag }}
+        run: |
+          set -euo pipefail
+          cat > notes.md <<NOTES
+          PALLSQL $TAG
+
+          Offline mobile web development environment for Android.
+
+          **Install:** download \`PALLSQL-$TAG.apk\` and sideload it on an
+          Android 7.0 (API 24) or newer device.
+
+          **Signing:** this APK is signed with a debug key produced by CI. It is
+          installable but not suitable for Play Store distribution. Build your
+          own signed APK before publishing anywhere else.
+
+          **What works:** local HTTP server (static sites), SQLite databases,
+          file manager, code editor, projects, backups, logs, restricted
+          terminal.
+
+          **Not included:** a PHP interpreter and MariaDB. PHP requests return
+          HTTP 501 with an explanation until a php-cgi runtime is packaged for
+          the device ABI. See docs/php-runtime.md.
+
+          Checksums are attached in SHA256SUMS.txt.
+          NOTES
+          gh release create "$TAG" \
+            --title "PALLSQL $TAG" \
+            --notes-file notes.md \
+            artifacts/*.apk artifacts/SHA256SUMS.txt
+
+      - name: Upload build logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PALLSQL-release-logs
+          path: |
+            build/**/*.log
+            android/**/build/**/*.log
+          if-no-files-found: ignore
+          retention-days: 7

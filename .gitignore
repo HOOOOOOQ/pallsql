@@ -1,0 +1,33 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+coverage/
+
+# Android
+.gradle/
+local.properties
+key.properties
+*.jks
+*.keystore
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/.cxx/
+
+# IntelliJ / VS Code
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+
+# Local scratch data
+tmp/
+*.log
