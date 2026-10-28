@@ -2,6 +2,8 @@ import '../models/log_entry.dart';
 
 /// Anything that can record a structured log line.
 abstract class LogSink {
+  const LogSink();
+
   void log(LogLevel level, LogSource source, String message);
 
   void debug(LogSource source, String message) => log(LogLevel.debug, source, message);
