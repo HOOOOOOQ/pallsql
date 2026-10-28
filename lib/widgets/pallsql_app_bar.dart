@@ -115,28 +115,34 @@ class PallSqlWordmark extends StatelessWidget {
       children: <Widget>[
         PallSqlLogoMark(size: compact ? 34 : 44),
         const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Text(
-              AppInfo.appName,
-              style: TextStyle(
-                fontSize: compact ? 18 : 22,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 2,
-                color: PallSqlColors.textPrimary,
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(
+                AppInfo.appName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: compact ? 18 : 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2,
+                  color: PallSqlColors.textPrimary,
+                ),
               ),
-            ),
-            Text(
-              'v${AppInfo.version} - local environment',
-              style: const TextStyle(
-                fontSize: 11,
-                color: PallSqlColors.textSecondary,
-                letterSpacing: 0.3,
+              Text(
+                'v${AppInfo.version} - local environment',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: PallSqlColors.textSecondary,
+                  letterSpacing: 0.3,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
