@@ -174,7 +174,7 @@ class TerminalService {
             ]);
           }
           return TerminalResult(<TerminalLine>[
-            TerminalLine('${command.usage}'),
+            TerminalLine(command.usage),
             TerminalLine(command.description),
           ]);
         }

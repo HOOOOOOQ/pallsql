@@ -15,7 +15,7 @@ abstract class LogSink {
 }
 
 /// A sink that intentionally drops everything (used by isolated unit tests).
-class NullLogSink implements LogSink {
+class NullLogSink extends LogSink {
   const NullLogSink();
 
   @override

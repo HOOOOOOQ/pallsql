@@ -57,12 +57,15 @@ def gradle_lines(lines: list[str]) -> list[str]:
         block = [line.strip() for line in lines[-40:] if line.strip()]
         return block
     block: list[str] = []
-    for line in lines[start:start + 40]:
-        stripped = line.rstrip()
-        if stripped.strip().startswith("* Try:"):
+    for line in lines[start:start + 60]:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("> Run with"):
+            continue
+        block.append(stripped)
+        if len(block) >= 45:
             break
-        if stripped.strip():
-            block.append(stripped.strip())
     return block
 
 

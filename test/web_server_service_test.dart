@@ -10,19 +10,14 @@ import 'package:pallsql/services/web_server_service.dart';
 
 /// Fake PHP bridge that records the request it received.
 class _FakePhpBridge implements PhpBridge {
-  _FakePhpBridge({this.available = true});
-
-  final bool available;
   PhpCgiRequest? lastRequest;
 
   @override
-  PhpRuntimeInfo get info => available
-      ? const PhpRuntimeInfo(
-          available: true,
-          version: '8.3.0',
-          binaryPath: '/tmp/php-cgi',
-        )
-      : PhpRuntimeInfo.unavailable('not installed');
+  PhpRuntimeInfo get info => const PhpRuntimeInfo(
+        available: true,
+        version: '8.3.0',
+        binaryPath: '/tmp/php-cgi',
+      );
 
   @override
   Future<PhpCgiResponse> execute(PhpCgiRequest request) async {

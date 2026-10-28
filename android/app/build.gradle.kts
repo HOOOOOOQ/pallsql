@@ -28,6 +28,7 @@ android {
             // before distributing outside of testing. See docs/release.md.
             signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 

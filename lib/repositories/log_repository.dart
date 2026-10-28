@@ -6,7 +6,7 @@ import '../models/log_entry.dart';
 import '../services/log_sink.dart';
 
 /// In-memory log ring buffer with optional persistence to a log file.
-class LogRepository implements LogSink, LogController {
+class LogRepository extends LogSink implements LogController {
   LogRepository({
     File? file,
     int maxEntries = 500,

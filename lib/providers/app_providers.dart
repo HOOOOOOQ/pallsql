@@ -150,6 +150,7 @@ class WebServerNotifier extends Notifier<WebServerSnapshot>
     }
   }
 
+  @override
   Future<String?> start() async {
     final AppBootstrap bootstrap = ref.read(bootstrapProvider);
     final AppSettings settings = ref.read(settingsProvider);
@@ -176,6 +177,7 @@ class WebServerNotifier extends Notifier<WebServerSnapshot>
     }
   }
 
+  @override
   Future<String?> stop() async {
     final AppBootstrap bootstrap = ref.read(bootstrapProvider);
     try {
@@ -187,6 +189,7 @@ class WebServerNotifier extends Notifier<WebServerSnapshot>
     }
   }
 
+  @override
   Future<String?> restart() async {
     final AppBootstrap bootstrap = ref.read(bootstrapProvider);
     final bool wasRunning = _service.snapshot.isRunning;
@@ -204,10 +207,12 @@ class WebServerNotifier extends Notifier<WebServerSnapshot>
   }
 
   /// Applies a new port/LAN setting; restarts when the server is running.
+  @override
   Future<String?> applyNetworkSettings() async {
     return restart();
   }
 
+  @override
   Future<bool> openWebsite() async {
     final String url = state.primaryUrl;
     return ref.read(linkOpenerProvider).open(url);
@@ -240,6 +245,7 @@ class PhpRuntimeNotifier extends AsyncNotifier<PhpRuntimeInfo>
     return bootstrap.php.refresh();
   }
 
+  @override
   Future<PhpRuntimeInfo?> refresh() async {
     final AppBootstrap bootstrap = ref.read(bootstrapProvider);
     if (!_disposed) {
@@ -337,6 +343,7 @@ class DatabaseNotifier extends AsyncNotifier<DatabaseOverview>
     );
   }
 
+  @override
   Future<void> refresh() async {
     if (_disposed) {
       return;
@@ -349,6 +356,7 @@ class DatabaseNotifier extends AsyncNotifier<DatabaseOverview>
     }
   }
 
+  @override
   Future<String?> createDatabase(String name) async {
     final SqliteDatabaseRepository repository =
         ref.read(databaseRepositoryProvider);
@@ -361,6 +369,7 @@ class DatabaseNotifier extends AsyncNotifier<DatabaseOverview>
     }
   }
 
+  @override
   Future<String?> deleteDatabase(String name) async {
     final SqliteDatabaseRepository repository =
         ref.read(databaseRepositoryProvider);

@@ -132,7 +132,7 @@ class BackupService {
     await file.writeAsBytes(encoded, flush: true);
     _logs.info(
       LogSource.backup,
-      'Created $fileName (${archive.files.length} entries)',
+      'Created $fileName (${archive.files.length} entries, $bytes bytes)',
     );
     return BackupInfo(
       fileName: fileName,
