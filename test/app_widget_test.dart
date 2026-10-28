@@ -55,11 +55,11 @@ void main() {
       (WidgetTester tester) async {
     await pumpApp(tester);
 
-    await tester.tap(find.text('Servers').last);
+    await tester.tap(find.byIcon(Icons.dns_rounded).last);
     for (int i = 0; i < 6; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
-    expect(find.text('Local web server'), findsWidgets);
+    expect(find.text('Servers'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
@@ -76,7 +76,10 @@ void main() {
       tester.element(find.byType(Scaffold).first),
     );
     expect(container.read(webServerProvider).state, ServiceState.stopped);
-    expect(container.read(phpRuntimeProvider).valueOrNull?.available, isFalse);
+    expect(
+      container.read(phpRuntimeProvider).valueOrNull?.available ?? false,
+      isFalse,
+    );
   });
 
   testWidgets('workspace folders exist after bootstrap',

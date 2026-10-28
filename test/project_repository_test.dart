@@ -81,7 +81,7 @@ void main() {
     final List<Project> remaining = await repository.load();
     expect(remaining.single.id, copy.id);
     expect(
-      (await repository.directoryOf(project)).existsSync(),
+      Directory('${workspace.projects.path}/${project.directory}').existsSync(),
       isFalse,
     );
   });

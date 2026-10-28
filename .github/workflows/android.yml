@@ -66,7 +66,11 @@ jobs:
 
       - name: Publish analyzer errors
         if: failure()
-        run: python3 scripts/ci_report.py errors /tmp/analyze.log /tmp/test.log
+        run: python3 scripts/ci_report.py errors /tmp/analyze.log
+
+      - name: Publish test failures
+        if: failure()
+        run: python3 scripts/ci_report.py test /tmp/test.log
 
       - name: Publish analyzer notes
         if: failure()

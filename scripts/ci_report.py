@@ -42,6 +42,15 @@ def analyze_lines(lines: list[str], only_errors: bool = False) -> list[str]:
     return picked
 
 
+def test_lines(lines: list[str]) -> list[str]:
+    markers = ("Some tests failed", "Expected:", "Actual:", "Which:", "EXCEPTION",
+               "Error:", "error:", "failed", "FAILED", "Test failed", "+0 -")
+    picked = [line.strip() for line in lines if any(m in line for m in markers)]
+    if not picked:
+        picked = [line.strip() for line in lines[-50:] if line.strip()]
+    return picked
+
+
 def gradle_lines(lines: list[str]) -> list[str]:
     start = None
     for index, line in enumerate(lines):
@@ -91,7 +100,7 @@ def emit(kind: str, lines: list[str]) -> None:
 
 def main(argv: list[str]) -> int:
     if len(argv) < 3:
-        print("usage: ci_report.py <analyze|errors|notes|gradle|raw> <logfile> [logfile...]")
+        print("usage: ci_report.py <analyze|errors|notes|test|gradle|raw> <logfile> [logfile...]")
         return 2
     mode = argv[1]
     collected: list[str] = []
@@ -103,6 +112,8 @@ def main(argv: list[str]) -> int:
         if mode in ("analyze", "errors", "notes"):
             for line in analyze_lines(lines, only_errors=(mode == "errors")):
                 collected.append(f"[{label}] {line}")
+        elif mode == "test":
+            collected.extend([f"[{label}] {line}" for line in test_lines(lines)])
         elif mode == "gradle":
             collected.extend([f"[{label}] {line}" for line in gradle_lines(lines)])
         else:
