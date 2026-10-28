@@ -23,8 +23,7 @@ Future<void> main() async {
       ),
     );
   } on Object catch (error, stackTrace) {
-    debugPrint('PALLSQL startup failed: $error
-$stackTrace');
+    debugPrint('PALLSQL startup failed: $error\n$stackTrace');
     runApp(_StartupFailureApp(error: error));
   }
 }

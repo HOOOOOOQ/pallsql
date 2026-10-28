@@ -189,13 +189,12 @@ class WebServerNotifier extends Notifier<WebServerSnapshot>
 
   Future<String?> restart() async {
     final AppBootstrap bootstrap = ref.read(bootstrapProvider);
-    final AppSettings settings = ref.read(settingsProvider);
     final bool wasRunning = _service.snapshot.isRunning;
     try {
       await _service.stop();
       await _applyDocumentRoot();
       if (wasRunning) {
-        return start();
+        return await start();
       }
       return null;
     } on Object catch (error) {

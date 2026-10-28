@@ -56,51 +56,51 @@ class SyntaxHighlighter {
 
   static final Map<CodeLanguage, RegExp> _patterns = <CodeLanguage, RegExp>{
     CodeLanguage.sql: RegExp(
-      r"(?<comment>--[^\n]*|/\*[\s\S]*?\*/)"
-      r"|(?<string>'(?:[^']|'')*')"
-      r"|(?<keyword>\b(?:SELECT|FROM|WHERE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|TABLE|INDEX|VIEW|DROP|ALTER|ADD|PRIMARY|KEY|FOREIGN|REFERENCES|NOT|NULL|DEFAULT|AUTOINCREMENT|JOIN|LEFT|RIGHT|INNER|OUTER|ON|GROUP|BY|ORDER|HAVING|LIMIT|OFFSET|AS|AND|OR|IN|IS|LIKE|BETWEEN|UNION|ALL|DISTINCT|BEGIN|COMMIT|ROLLBACK|TRANSACTION|PRAGMA|EXPLAIN|CASE|WHEN|THEN|ELSE|END|INTEGER|TEXT|REAL|BLOB|NUMERIC|UNIQUE|CHECK|CASCADE|IF|EXISTS|WITH|REPLACE|VACUUM)\b)"
-      r"|(?<number>\b\d+(?:\.\d+)?\b)",
+      r"""(?<comment>--[^\n]*|/\*[\s\S]*?\*/)"""
+      r"""|(?<string>'(?:[^']|'')*')"""
+      r"""|(?<keyword>\b(?:SELECT|FROM|WHERE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|TABLE|INDEX|VIEW|DROP|ALTER|ADD|PRIMARY|KEY|FOREIGN|REFERENCES|NOT|NULL|DEFAULT|AUTOINCREMENT|JOIN|LEFT|RIGHT|INNER|OUTER|ON|GROUP|BY|ORDER|HAVING|LIMIT|OFFSET|AS|AND|OR|IN|IS|LIKE|BETWEEN|UNION|ALL|DISTINCT|BEGIN|COMMIT|ROLLBACK|TRANSACTION|PRAGMA|EXPLAIN|CASE|WHEN|THEN|ELSE|END|INTEGER|TEXT|REAL|BLOB|NUMERIC|UNIQUE|CHECK|CASCADE|IF|EXISTS|WITH|REPLACE|VACUUM)\b)"""
+      r"""|(?<number>\b\d+(?:\.\d+)?\b)""",
       caseSensitive: false,
     ),
     CodeLanguage.javascript: RegExp(
-      r"(?<comment>//[^\n]*|/\*[\s\S]*?\*/)"
-      r"|(?<string>'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"|`(?:[^`\\]|\\.)*`)"
-      r"|(?<keyword>\b(?:const|let|var|function|return|if|else|for|while|do|switch|case|break|continue|new|class|extends|import|export|from|await|async|try|catch|finally|throw|typeof|instanceof|this|null|undefined|true|false|of|in)\b)"
-      r"|(?<number>\b\d+(?:\.\d+)?\b)",
+      r"""(?<comment>//[^\n]*|/\*[\s\S]*?\*/)"""
+      r"""|(?<string>'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)"""
+      r"""|(?<keyword>\b(?:const|let|var|function|return|if|else|for|while|do|switch|case|break|continue|new|class|extends|import|export|from|await|async|try|catch|finally|throw|typeof|instanceof|this|null|undefined|true|false|of|in)\b)"""
+      r"""|(?<number>\b\d+(?:\.\d+)?\b)""",
     ),
     CodeLanguage.php: RegExp(
-      r"(?<comment>//[^\n]*|#[^\n]*|/\*[\s\S]*?\*/)"
-      r"|(?<string>'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\")"
-      r"|(?<tag><\?php|<\?=|\?>)"
-      r"|(?<variable>\$[A-Za-z_][A-Za-z0-9_]*)"
-      r"|(?<keyword>\b(?:function|return|if|else|elseif|foreach|for|while|switch|case|break|continue|new|class|extends|implements|public|private|protected|static|echo|print|require|include|require_once|include_once|try|catch|finally|throw|null|true|false|array|use|namespace|isset|empty|unset|global|const|as|instanceof)\b)"
-      r"|(?<number>\b\d+(?:\.\d+)?\b)",
+      r"""(?<comment>//[^\n]*|#[^\n]*|/\*[\s\S]*?\*/)"""
+      r"""|(?<string>'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")"""
+      r"""|(?<tag><\?php|<\?=|\?>)"""
+      r"""|(?<variable>\$[A-Za-z_][A-Za-z0-9_]*)"""
+      r"""|(?<keyword>\b(?:function|return|if|else|elseif|foreach|for|while|switch|case|break|continue|new|class|extends|implements|public|private|protected|static|echo|print|require|include|require_once|include_once|try|catch|finally|throw|null|true|false|array|use|namespace|isset|empty|unset|global|const|as|instanceof)\b)"""
+      r"""|(?<number>\b\d+(?:\.\d+)?\b)""",
     ),
     CodeLanguage.html: RegExp(
-      r"(?<comment><!--[\s\S]*?-->)"
-      r"|(?<tag></?[A-Za-z][A-Za-z0-9:-]*)"
-      r"|(?<string>\"[^\"]*\"|'[^']*')"
-      r"|(?<keyword>\b(?:DOCTYPE|doctype)\b)",
+      r"""(?<comment><!--[\s\S]*?-->)"""
+      r"""|(?<tag></?[A-Za-z][A-Za-z0-9:-]*)"""
+      r"""|(?<string>"[^"]*"|'[^']*')"""
+      r"""|(?<keyword>\b(?:DOCTYPE|doctype)\b)""",
     ),
     CodeLanguage.css: RegExp(
-      r"(?<comment>/\*[\s\S]*?\*/)"
-      r"|(?<atrule>@[A-Za-z-]+)"
-      r"|(?<string>\"[^\"]*\"|'[^']*')"
-      r"|(?<keyword>[A-Za-z-]+(?=\s*:))"
-      r"|(?<number>#(?:[0-9a-fA-F]{3,8})\b|\b\d+(?:\.\d+)?(?:px|em|rem|%|vh|vw|s|ms)?\b)",
+      r"""(?<comment>/\*[\s\S]*?\*/)"""
+      r"""|(?<atrule>\[A-Za-z-]+)"""
+      r"""|(?<string>"[^"]*"|'[^']*')"""
+      r"""|(?<keyword>[A-Za-z-]+(?=\s*:))"""
+      r"""|(?<number>#(?:[0-9a-fA-F]{3,8})\b|\b\d+(?:\.\d+)?(?:px|em|rem|%|vh|vw|s|ms)?\b)""",
     ),
     CodeLanguage.json: RegExp(
-      r"(?<keyword>\"[^\"\\]*(?:\\.[^\"\\]*)*\"(?=\s*:))"
-      r"|(?<string>\"[^\"\\]*(?:\\.[^\"\\]*)*\")"
-      r"|(?<number>-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b)"
-      r"|(?<tag>\b(?:true|false|null)\b)",
+      r"""(?<keyword>"[^"\\]*(?:\\.[^"\\]*)*"(?=\s*:))"""
+      r"""|(?<string>"[^"\\]*(?:\\.[^"\\]*)*")"""
+      r"""|(?<number>-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b)"""
+      r"""|(?<tag>\b(?:true|false|null)\b)""",
     ),
     CodeLanguage.markdown: RegExp(
-      r"(?<keyword>^#{1,6} .*$)"
-      r"|(?<comment>^>.*$)"
-      r"|(?<string>`[^`]*`)"
-      r"|(?<tag>\*\*[^*]+\*\*|__[^_]+__)"
-      r"|(?<number>^\s*(?:[-*+]|\d+\.)\s)",
+      r"""(?<keyword>^#{1,6} .*$)"""
+      r"""|(?<comment>^>.*$)"""
+      r"""|(?<string>`[^`]*`)"""
+      r"""|(?<tag>\*\*[^*]+\*\*|__[^_]+__)"""
+      r"""|(?<number>^\s*(?:[-*+]|\d+\.)\s)""",
       multiLine: true,
     ),
   };
@@ -152,8 +152,7 @@ class SyntaxHighlighter {
             color: color,
             fontWeight: weight,
             fontStyle: fontStyle,
-            backgroundColor:
-                color == null ? null : color.withValues(alpha: 0.06),
+            backgroundColor: color?.withValues(alpha: 0.06),
           ),
         ),
       );

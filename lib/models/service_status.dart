@@ -52,9 +52,8 @@ extension ServiceStateX on ServiceState {
 class ServiceStatus {
   const ServiceStatus(this.state, {this.message, this.updatedAt});
 
-  const ServiceStatus.stopped({String? message})
+  const ServiceStatus.stopped({this.message})
       : state = ServiceState.stopped,
-        message = message,
         updatedAt = null;
 
   const ServiceStatus.unavailable(String reason)
@@ -62,9 +61,8 @@ class ServiceStatus {
         message = reason,
         updatedAt = null;
 
-  const ServiceStatus.running({String? message})
+  const ServiceStatus.running({this.message})
       : state = ServiceState.running,
-        message = message,
         updatedAt = null;
 
   const ServiceStatus.error(String reason)

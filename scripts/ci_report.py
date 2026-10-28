@@ -30,24 +30,39 @@ def read_lines(path: str) -> list[str]:
         return [line.rstrip("\n") for line in handle]
 
 
-def analyze_lines(lines: list[str]) -> list[str]:
+def analyze_lines(lines: list[str], only_errors: bool = False) -> list[str]:
     picked = [line.strip() for line in lines if any(m in line for m in ANALYZE_MARKERS)]
+    if only_errors:
+        picked = [line for line in picked if " error • " in line]
+    else:
+        picked = [line for line in picked if " error • " not in line]
     picked = [line for line in picked if line]
-    if not picked:
+    if not picked and not only_errors:
         picked = [line.strip() for line in lines[-40:] if line.strip()]
     return picked
 
 
 def gradle_lines(lines: list[str]) -> list[str]:
-    start = 0
+    start = None
     for index, line in enumerate(lines):
-        if "What went wrong" in line or "FAILURE:" in line:
-            start = max(0, index - 2)
+        if "What went wrong" in line:
+            start = index
             break
-    block = [line.rstrip() for line in lines[start:start + 80]]
-    block = [line for line in block if line.strip()]
-    if not block:
-        block = [line for line in lines[-60:] if line.strip()]
+    if start is None:
+        for index, line in enumerate(lines):
+            if "FAILURE:" in line:
+                start = max(0, index - 2)
+                break
+    if start is None:
+        block = [line.strip() for line in lines[-40:] if line.strip()]
+        return block
+    block: list[str] = []
+    for line in lines[start:start + 40]:
+        stripped = line.rstrip()
+        if stripped.strip().startswith("* Try:"):
+            break
+        if stripped.strip():
+            block.append(stripped.strip())
     return block
 
 
@@ -73,7 +88,7 @@ def emit(kind: str, lines: list[str]) -> None:
 
 def main(argv: list[str]) -> int:
     if len(argv) < 3:
-        print("usage: ci_report.py <analyze|gradle|raw> <logfile> [logfile...]")
+        print("usage: ci_report.py <analyze|errors|notes|gradle|raw> <logfile> [logfile...]")
         return 2
     mode = argv[1]
     collected: list[str] = []
@@ -82,8 +97,9 @@ def main(argv: list[str]) -> int:
         if not lines:
             continue
         label = os.path.basename(path)
-        if mode == "analyze":
-            collected.extend([f"[{label}] {line}" for line in analyze_lines(lines)])
+        if mode in ("analyze", "errors", "notes"):
+            for line in analyze_lines(lines, only_errors=(mode == "errors")):
+                collected.append(f"[{label}] {line}")
         elif mode == "gradle":
             collected.extend([f"[{label}] {line}" for line in gradle_lines(lines)])
         else:

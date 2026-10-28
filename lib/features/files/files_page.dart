@@ -579,7 +579,7 @@ class _FilesPageState extends ConsumerState<FilesPage> {
                                     Text(
                                       _searching
                                           ? entry.relativePath
-                                          : '${entry.displaySize}',
+                                          : entry.displaySize,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
                                         fontSize: 10,

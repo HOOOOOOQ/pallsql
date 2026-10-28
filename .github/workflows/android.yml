@@ -64,10 +64,17 @@ jobs:
           set -o pipefail
           dart format --output=none --set-exit-if-changed lib test 2>&1 | tee /tmp/format.log
 
-      - name: Publish failure details
+      - name: Publish analyzer errors
+        if: failure()
+        run: python3 scripts/ci_report.py errors /tmp/analyze.log /tmp/test.log
+
+      - name: Publish analyzer notes
+        if: failure()
+        run: python3 scripts/ci_report.py notes /tmp/analyze.log /tmp/format.log
+
+      - name: Print logs
         if: failure()
         run: |
-          python3 scripts/ci_report.py analyze /tmp/analyze.log /tmp/test.log /tmp/format.log
           for f in /tmp/analyze.log /tmp/test.log /tmp/format.log; do
             [ -f "$f" ] || continue
             echo "::group::$(basename "$f")"

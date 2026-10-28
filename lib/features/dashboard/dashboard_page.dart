@@ -136,7 +136,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               icon: Icons.lan_rounded,
               status: server.toStatus(),
               subtitle: server.isRunning
-                  ? '${server.urls.join('  ')}'
+                  ? server.urls.join('  ')
                   : 'Dart HTTP server on 127.0.0.1',
               details: <String>[
                 'port      ${server.port ?? ref.watch(settingsProvider).httpPort}',

@@ -342,7 +342,7 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
 class AppBootstrapRef {
   AppBootstrapRef(this.ref);
 
-  final Ref ref;
+  final WidgetRef ref;
 
   Directory get backupsDirectory => ref.read(bootstrapProvider).workspace.backups;
 }

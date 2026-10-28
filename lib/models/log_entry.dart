@@ -71,7 +71,7 @@ class LogEntry {
     required this.timestamp,
     required this.level,
     required this.source,
-    required this.message,
+    required String message,
   }) : message = _sanitize(message);
 
   final DateTime timestamp;
@@ -137,8 +137,8 @@ class LogEntry {
       return true;
     }
     return message.toLowerCase().contains(trimmed) ||
-        source.label.toLowerCase().contains(trimmed) ||
-        level.label.toLowerCase().contains(trimmed);
+        this.source.label.toLowerCase().contains(trimmed) ||
+        this.level.label.toLowerCase().contains(trimmed);
   }
 
   @override
