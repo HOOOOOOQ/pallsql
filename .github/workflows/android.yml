@@ -47,14 +47,36 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed lib test
-
       - name: Static analysis
-        run: flutter analyze
+        run: |
+          set -o pipefail
+          flutter analyze 2>&1 | tee /tmp/analyze.log
 
-      - name: Unit and service tests
-        run: flutter test --reporter expanded
+      - name: Unit, service and widget tests
+        run: |
+          set -o pipefail
+          flutter test --reporter expanded 2>&1 | tee /tmp/test.log
+
+      # Formatting is checked last so that analyzer and test output stay
+      # readable even when the tree is not formatted yet.
+      - name: Verify formatting
+        run: |
+          set -o pipefail
+          dart format --output=none --set-exit-if-changed lib test 2>&1 | tee /tmp/format.log
+
+      - name: Publish failure details
+        if: failure()
+        run: |
+          shopt -s nullglob
+          for f in /tmp/analyze.log /tmp/test.log /tmp/format.log; do
+            [ -f "$f" ] || continue
+            echo "::group::$(basename "$f")"
+            tail -n 40 "$f"
+            echo "::endgroup::"
+            tail -n 25 "$f" | sed 's/%/%25/g' | while IFS= read -r line; do
+              echo "::error title=$(basename "$f")::$line"
+            done
+          done
 
       - name: Upload quality logs
         if: failure()
@@ -62,7 +84,9 @@ jobs:
         with:
           name: PALLSQL-quality-logs
           path: |
-            **/*.log
+            /tmp/analyze.log
+            /tmp/test.log
+            /tmp/format.log
             pubspec.lock
           if-no-files-found: ignore
           retention-days: 7
@@ -117,13 +141,17 @@ jobs:
           cp "$tmp/bootstrap/android/gradlew" android/gradlew || true
           cp "$tmp/bootstrap/android/gradlew.bat" android/gradlew.bat || true
           chmod +x android/gradlew || true
-          ls -la android/gradle/wrapper android/gradlew 2>/dev/null || true
+          ls -la android/gradle/wrapper android/gradlew || true
 
       - name: Build debug APK
-        run: flutter build apk --debug
+        run: |
+          set -o pipefail
+          flutter build apk --debug 2>&1 | tee /tmp/debug-build.log
 
       - name: Build release APK
-        run: flutter build apk --release
+        run: |
+          set -o pipefail
+          flutter build apk --release 2>&1 | tee /tmp/release-build.log
 
       - name: Verify APK artifacts
         run: |
@@ -148,6 +176,21 @@ jobs:
           sha256sum artifacts/*.apk > artifacts/SHA256SUMS.txt
           cat artifacts/SHA256SUMS.txt
 
+      - name: Publish failure details
+        if: failure()
+        run: |
+          for f in /tmp/debug-build.log /tmp/release-build.log; do
+            [ -f "$f" ] || continue
+            grep -nE "(What went wrong|FAILURE:|e: |error:|Caused by|Execution failed|Could not|Exception)" "$f" | tail -n 25 > /tmp/errors.txt || true
+            echo "::group::$(basename "$f") errors"
+            cat /tmp/errors.txt || true
+            echo "::endgroup::"
+            tail -n 200 "$f" | tail -n 20 > /tmp/tail.txt || true
+            while IFS= read -r line; do
+              echo "::error title=$(basename "$f")::$line"
+            done < /tmp/tail.txt
+          done
+
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -162,8 +205,7 @@ jobs:
         with:
           name: PALLSQL-build-logs
           path: |
-            build/**/*.log
-            android/**/build/**/*.log
-            **/gradle*.log
+            /tmp/debug-build.log
+            /tmp/release-build.log
           if-no-files-found: ignore
           retention-days: 7
