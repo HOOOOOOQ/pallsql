@@ -236,13 +236,17 @@ class PallSqlPill extends StatelessWidget {
             Icon(icon, size: 11, color: color),
             const SizedBox(width: 4),
           ],
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              color: color,
-              fontSize: 9.5,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.1,
+          Flexible(
+            child: Text(
+              label.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.1,
+              ),
             ),
           ),
         ],

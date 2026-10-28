@@ -8,6 +8,10 @@ aplikasi dipasang. Di dalamnya ada HTTP server sungguhan, database SQLite
 sungguhan, file manager, code editor, project manager, backup ZIP, log viewer,
 dan terminal terbatas berbasis registry perintah.
 
+Rilis terbaru: [v0.1.0](https://github.com/HOOOOOOQ/pallsql/releases/tag/v0.1.0)
+(APK 26,8 MB, ditandatangani dengan debug key). Riwayat build dan artefak ada di
+tab [Actions](https://github.com/HOOOOOOQ/pallsql/actions).
+
 > **Status jujur:** proyek ini sedang dalam pengembangan aktif. Static web
 > server, SQLite, file manager, editor, project, backup, log dan terminal sudah
 > diimplementasikan di kode. **Runtime PHP dan MariaDB belum dibundel**, jadi
@@ -162,8 +166,8 @@ Workflow [`.github/workflows/android.yml`](.github/workflows/android.yml)
 berjalan pada `push` dan `pull_request` ke `main` serta `workflow_dispatch`:
 
 1. **Job `quality`** — set up JDK 17 + Flutter 3.47.8 (cache aktif),
-   `flutter pub get`, cek format (`dart format --set-exit-if-changed lib test`),
-   `flutter analyze`, lalu `flutter test`.
+   `flutter pub get`, `flutter analyze`, `flutter test`, lalu cek format
+   (`dart format --set-exit-if-changed lib test`) sebagai gerbang terakhir.
 2. **Job `apk`** — `flutter pub get`, restore Gradle wrapper bila belum ada,
    `flutter build apk --debug`, `flutter build apk --release`, verifikasi file
    APK benar-benar ada dan berukuran wajar (≥ 1 MB), lalu upload artefak
@@ -291,6 +295,27 @@ CI (`.github/workflows/android.yml`) builds a debug and a release APK on every
 push to `main` and uploads them as the `PALLSQL-Android-APK` artifact. Tagging
 `v*.*.*` publishes a GitHub Release with the APK attached. Release APKs are
 signed with the debug key so they are installable but not store-ready.
+
+---
+
+### Status verifikasi
+
+Pipeline CI pada repositori ini sudah diverifikasi berjalan (lihat tab Actions):
+
+- `flutter analyze`: **No issues found**
+- `flutter test`: **105 test lulus** (unit, service, repository, dan widget),
+  termasuk uji layout yang merender setiap tab dan setiap layar pada permukaan
+  360x780 dp untuk menangkap overflow
+- `flutter build apk --debug` dan `--release`: **berhasil**, artefak
+  `PALLSQL-Android-APK` terunggah (debug + release + checksum)
+- `release.yml` pada tag `v0.1.0`: **berhasil** membuat GitHub Release dengan APK
+  dan `SHA256SUMS.txt`
+
+Yang **belum** diverifikasi karena keterbatasan lingkungan: aplikasi belum
+pernah dijalankan di device/emulator Android sungguhan (tidak ada emulator di
+lingkungan build ini), sehingga perilaku runtime seperti foreground service,
+document picker, dan share sheet baru diverifikasi lewat build dan test, bukan
+lewat uji perangkat.
 
 ---
 

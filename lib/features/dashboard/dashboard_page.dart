@@ -434,11 +434,15 @@ class _EnvironmentHeader extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              const Expanded(child: PallSqlWordmark()),
-              PallSqlPill(
-                label: aggregate.overallLabel,
-                color: stateColor,
-                icon: Icons.circle,
+              const Flexible(child: PallSqlWordmark()),
+              const SizedBox(width: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 132),
+                child: PallSqlPill(
+                  label: aggregate.overallLabel,
+                  color: stateColor,
+                  icon: Icons.circle,
+                ),
               ),
             ],
           ),

@@ -4,6 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pallsql/app.dart';
+import 'package:pallsql/core/theme/pallsql_theme.dart';
+import 'package:pallsql/features/dashboard/dashboard_page.dart';
+import 'package:pallsql/features/database/database_page.dart';
+import 'package:pallsql/features/files/files_page.dart';
+import 'package:pallsql/features/servers/servers_page.dart';
+import 'package:pallsql/features/settings/settings_page.dart';
 import 'package:pallsql/models/service_status.dart';
 import 'package:pallsql/providers/app_providers.dart';
 import 'package:pallsql/services/app_bootstrap.dart';
@@ -11,6 +17,20 @@ import 'package:pallsql/widgets/pallsql_bottom_navigation.dart';
 import 'package:pallsql/widgets/pallsql_card.dart';
 
 import 'support/test_bootstrap.dart';
+
+/// Renders a captured layout error (including the offending widget location)
+/// into a single readable string so CI annotations point at the real culprit.
+String describeLayoutError(FlutterErrorDetails details) {
+  final StringBuffer buffer = StringBuffer(details.exceptionAsString());
+  final Iterable<DiagnosticsNode> info =
+      details.informationCollector?.call() ?? const <DiagnosticsNode>[];
+  for (final DiagnosticsNode node in info) {
+    buffer
+      ..writeln()
+      ..writeln(node.toStringDeep().trim());
+  }
+  return buffer.toString();
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -62,11 +82,18 @@ void main() {
     );
     expect(serversTab, findsOneWidget);
     await tester.tap(serversTab);
+    await tester.pump();
+    final Object? exception = tester.takeException();
+    expect(exception, isNull, reason: 'switching tabs raised: $exception');
+    expect(
+      tester.widget<IndexedStack>(find.byType(IndexedStack)).index,
+      1,
+      reason: 'the Servers tab should be selected',
+    );
     for (int i = 0; i < 6; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
     expect(find.text('Servers'), findsWidgets);
-    expect(tester.takeException(), isNull);
   });
 
   testWidgets('dashboard shows the real stopped state, not a fake runtime',
@@ -86,6 +113,78 @@ void main() {
       container.read(phpRuntimeProvider).valueOrNull?.available ?? false,
       isFalse,
     );
+  });
+
+  testWidgets('every tab renders on a phone sized surface without overflow',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    final List<FlutterErrorDetails> errors = <FlutterErrorDetails>[];
+    final void Function(FlutterErrorDetails)? previousHandler =
+        FlutterError.onError;
+    FlutterError.onError = errors.add;
+    addTearDown(() => FlutterError.onError = previousHandler);
+
+    for (int tab = 0; tab < 5; tab++) {
+      errors.clear();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: <Override>[bootstrapProvider.overrideWithValue(bootstrap)],
+          child: PallSqlApp(initialTab: tab),
+        ),
+      );
+      for (int i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(
+        errors,
+        isEmpty,
+        reason: 'tab $tab rendered badly on a 360x780 logical surface\n'
+            '${errors.map(describeLayoutError).join('\n---\n')}',
+      );
+    }
+  });
+
+  testWidgets('each screen lays out on a phone sized surface',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    final List<FlutterErrorDetails> errors = <FlutterErrorDetails>[];
+    final void Function(FlutterErrorDetails)? previousHandler =
+        FlutterError.onError;
+    FlutterError.onError = errors.add;
+    addTearDown(() => FlutterError.onError = previousHandler);
+
+    final Map<String, Widget> screens = <String, Widget>{
+      'dashboard': const DashboardPage(),
+      'servers': const ServersPage(),
+      'database': const DatabasePage(),
+      'files': const FilesPage(),
+      'settings': const SettingsPage(),
+    };
+
+    for (final MapEntry<String, Widget> entry in screens.entries) {
+      errors.clear();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: <Override>[bootstrapProvider.overrideWithValue(bootstrap)],
+          child: MaterialApp(theme: PallSqlTheme.dark(), home: entry.value),
+        ),
+      );
+      for (int i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(
+        errors,
+        isEmpty,
+        reason: 'the ${entry.key} screen overflowed on a 360x780 surface\n'
+            '${errors.map(describeLayoutError).join('\n---\n')}',
+      );
+    }
   });
 
   testWidgets('workspace folders exist after bootstrap',
