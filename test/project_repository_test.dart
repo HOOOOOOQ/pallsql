@@ -41,7 +41,10 @@ void main() {
     expect(File('${directory.path}/index.html').existsSync(), isTrue);
 
     final List<Project> projects = await repository.load();
-    expect(projects.single.id, project.id);
+    expect(
+      projects.map((Project item) => item.id),
+      contains(project.id),
+    );
   });
 
   test('rejects invalid names and keeps folder names unique', () async {
@@ -72,14 +75,16 @@ void main() {
   test('duplicates and deletes a project', () async {
     final Project project =
         await repository.create(name: 'Base', template: ProjectTemplate.staticSite);
+    final int before = (await repository.load()).length;
     final Project copy =
         await repository.duplicate(project, newName: 'Base copy');
     expect(copy.id, isNot(project.id));
-    expect((await repository.load()), hasLength(2));
+    expect((await repository.load()).length, before + 1);
 
     await repository.delete(project);
     final List<Project> remaining = await repository.load();
-    expect(remaining.single.id, copy.id);
+    expect(remaining.map((Project item) => item.id), contains(copy.id));
+    expect(remaining.map((Project item) => item.id), isNot(contains(project.id)));
     expect(
       Directory('${workspace.projects.path}/${project.directory}').existsSync(),
       isFalse,

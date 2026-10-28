@@ -118,8 +118,9 @@ void main() {
       files.readText('htdocs/image.bin'),
       throwsA(isA<ValidationFailure>()),
     );
+    await files.createFile('htdocs', 'large.txt', content: 'x' * 4096);
     await expectLater(
-      files.readText('htdocs/big.txt', maxBytes: 10),
+      files.readText('htdocs/large.txt', maxBytes: 10),
       throwsA(isA<ValidationFailure>()),
     );
   });

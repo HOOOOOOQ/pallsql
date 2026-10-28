@@ -97,12 +97,14 @@ void main() {
   });
 
   test('blocks traversal including encoded variants', () async {
+    // The Dart HTTP client normalises a literal `/../` before it reaches the
+    // server, so only encoded traversal attempts are meaningful here.
     for (final String path in <String>[
-      '/../secret.txt',
       '/%2e%2e/secret.txt',
       '/..%2fsecret.txt',
       '/%252e%252e/secret.txt',
       '/..%5csecret.txt',
+      '/%2e%2e%2fsecret.txt',
     ]) {
       final HttpClientResponse response =
           await get('http://127.0.0.1:$port$path');

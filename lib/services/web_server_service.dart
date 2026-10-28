@@ -200,9 +200,14 @@ class WebServerService {
       );
       return snapshot;
     } on SocketException catch (error) {
-      final bool inUse = error.osError?.errorCode == 98 ||
-          error.osError?.errorCode == 48 ||
-          (error.osError?.message.toLowerCase().contains('in use') ?? false);
+      final int? code = error.osError?.errorCode;
+      final String detail =
+          '${error.message} ${error.osError?.message ?? ''}'.toLowerCase();
+      final bool inUse = code == 98 ||
+          code == 48 ||
+          code == 10048 ||
+          detail.contains('in use') ||
+          detail.contains('address already');
       _server = null;
       _setState(
         ServiceState.error,
