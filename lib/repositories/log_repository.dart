@@ -26,6 +26,7 @@ class LogRepository implements LogSink, LogController {
   bool _disposed = false;
 
   /// Newest first.
+  @override
   List<LogEntry> get entries => List<LogEntry>.unmodifiable(_entries);
 
   Stream<List<LogEntry>> get changes => _controller.stream;
@@ -91,6 +92,7 @@ class LogRepository implements LogSink, LogController {
   }
 
   /// Keeps only entries of the given source (used by the export dialog).
+  @override
   List<LogEntry> filtered({LogLevel? level, LogSource? source, String query = ''}) {
     return _entries
         .where((LogEntry entry) =>
@@ -98,6 +100,7 @@ class LogRepository implements LogSink, LogController {
         .toList(growable: false);
   }
 
+  @override
   Future<void> clear() async {
     _entries.clear();
     _pendingWrites.clear();

@@ -28,6 +28,7 @@ class FileRepository implements FileSystemController {
 
   String absolutePath(String relativePath) => guard.resolveRelative(relativePath);
 
+  @override
   Future<List<FileEntry>> list(
     String relativePath, {
     bool showHidden = false,
@@ -108,6 +109,7 @@ class FileRepository implements FileSystemController {
     }
   }
 
+  @override
   Future<FileEntry> createFile(
     String parentRelative,
     String name, {
@@ -128,6 +130,7 @@ class FileRepository implements FileSystemController {
     return stat(guard.toRelative(target));
   }
 
+  @override
   Future<FileEntry> createDirectory(String parentRelative, String name) async {
     final String? error = Validators.entryNameError(name);
     if (error != null) {
@@ -143,6 +146,7 @@ class FileRepository implements FileSystemController {
   }
 
   /// Reads a text file, refusing anything that is not valid UTF-8.
+  @override
   Future<String> readText(
     String relativePath, {
     int maxBytes = AppInfo.maxEditorBytes,
@@ -168,6 +172,7 @@ class FileRepository implements FileSystemController {
     }
   }
 
+  @override
   Future<void> writeText(String relativePath, String content) async {
     final File file = File(absolutePath(relativePath));
     await file.parent.create(recursive: true);
@@ -175,6 +180,7 @@ class FileRepository implements FileSystemController {
     _logs.info(LogSource.files, 'Saved ${p.basename(file.path)}');
   }
 
+  @override
   Future<void> rename(String relativePath, String newName) async {
     final String? error = Validators.entryNameError(newName);
     if (error != null) {
@@ -195,6 +201,7 @@ class FileRepository implements FileSystemController {
     _logs.info(LogSource.files, 'Renamed to ${newName.trim()}');
   }
 
+  @override
   Future<void> move(String fromRelative, String toRelative) async {
     final String source = absolutePath(fromRelative);
     final String destination = absolutePath(toRelative);
@@ -212,6 +219,7 @@ class FileRepository implements FileSystemController {
     _logs.info(LogSource.files, 'Moved ${p.basename(source)}');
   }
 
+  @override
   Future<void> copy(String fromRelative, String toRelative) async {
     final String source = absolutePath(fromRelative);
     final String destination = absolutePath(toRelative);
@@ -232,6 +240,7 @@ class FileRepository implements FileSystemController {
     _logs.info(LogSource.files, 'Copied ${p.basename(source)}');
   }
 
+  @override
   Future<void> delete(String relativePath) async {
     if (relativePath.isEmpty || guard.resolveRelative(relativePath) == guard.normalizedRoot) {
       throw const ValidationFailure('The workspace root cannot be deleted');
@@ -251,6 +260,7 @@ class FileRepository implements FileSystemController {
   }
 
   /// Recursive case insensitive search limited to [limit] hits.
+  @override
   Future<List<FileEntry>> search(String query, {int limit = 200}) async {
     final String needle = query.trim().toLowerCase();
     if (needle.isEmpty) {

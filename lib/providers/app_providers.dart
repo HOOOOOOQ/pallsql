@@ -408,6 +408,7 @@ class ProjectsNotifier extends AsyncNotifier<List<Project>>
     return ref.watch(projectRepositoryProvider).load();
   }
 
+  @override
   Future<void> reload() async {
     final List<Project> projects = await ref.read(projectRepositoryProvider).load();
     if (!_disposed) {
@@ -415,6 +416,7 @@ class ProjectsNotifier extends AsyncNotifier<List<Project>>
     }
   }
 
+  @override
   Future<String?> create({
     required String name,
     required ProjectTemplate template,
@@ -434,6 +436,7 @@ class ProjectsNotifier extends AsyncNotifier<List<Project>>
     }
   }
 
+  @override
   Future<String?> duplicate(Project project, String newName) async {
     try {
       await ref
@@ -446,6 +449,7 @@ class ProjectsNotifier extends AsyncNotifier<List<Project>>
     }
   }
 
+  @override
   Future<String?> delete(Project project) async {
     final SettingsController settings = ref.read(settingsProvider.notifier);
     final AppSettings current = ref.read(settingsProvider);
@@ -462,6 +466,7 @@ class ProjectsNotifier extends AsyncNotifier<List<Project>>
     }
   }
 
+  @override
   Future<String?> importZip(File archive, {String? name}) async {
     try {
       await ref
@@ -475,6 +480,7 @@ class ProjectsNotifier extends AsyncNotifier<List<Project>>
   }
 
   /// Exports a project ZIP into `tmp` and returns the file for sharing.
+  @override
   Future<File?> exportZip(Project project) async {
     final AppBootstrap bootstrap = ref.read(bootstrapProvider);
     final File destination =
@@ -489,6 +495,7 @@ class ProjectsNotifier extends AsyncNotifier<List<Project>>
     }
   }
 
+  @override
   Future<void> activate(Project? project) async {
     final SettingsController settings = ref.read(settingsProvider.notifier);
     await settings.setActiveProject(project?.id ?? '');

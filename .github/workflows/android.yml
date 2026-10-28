@@ -67,15 +67,12 @@ jobs:
       - name: Publish failure details
         if: failure()
         run: |
-          shopt -s nullglob
+          python3 scripts/ci_report.py analyze /tmp/analyze.log /tmp/test.log /tmp/format.log
           for f in /tmp/analyze.log /tmp/test.log /tmp/format.log; do
             [ -f "$f" ] || continue
             echo "::group::$(basename "$f")"
-            tail -n 40 "$f"
+            tail -n 60 "$f"
             echo "::endgroup::"
-            tail -n 25 "$f" | sed 's/%/%25/g' | while IFS= read -r line; do
-              echo "::error title=$(basename "$f")::$line"
-            done
           done
 
       - name: Upload quality logs
@@ -179,16 +176,12 @@ jobs:
       - name: Publish failure details
         if: failure()
         run: |
+          python3 scripts/ci_report.py gradle /tmp/debug-build.log /tmp/release-build.log
           for f in /tmp/debug-build.log /tmp/release-build.log; do
             [ -f "$f" ] || continue
-            grep -nE "(What went wrong|FAILURE:|e: |error:|Caused by|Execution failed|Could not|Exception)" "$f" | tail -n 25 > /tmp/errors.txt || true
-            echo "::group::$(basename "$f") errors"
-            cat /tmp/errors.txt || true
+            echo "::group::$(basename "$f")"
+            tail -n 80 "$f"
             echo "::endgroup::"
-            tail -n 200 "$f" | tail -n 20 > /tmp/tail.txt || true
-            while IFS= read -r line; do
-              echo "::error title=$(basename "$f")::$line"
-            done < /tmp/tail.txt
           done
 
       - name: Upload APK artifacts
