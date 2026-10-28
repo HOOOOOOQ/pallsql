@@ -203,11 +203,28 @@ class WebServerService {
       final int? code = error.osError?.errorCode;
       final String detail =
           '${error.message} ${error.osError?.message ?? ''}'.toLowerCase();
-      final bool inUse = code == 98 ||
+      bool inUse = code == 98 ||
           code == 48 ||
           code == 10048 ||
           detail.contains('in use') ||
           detail.contains('address already');
+      if (!inUse && port != 0) {
+        // Some Android/Dart combinations report a generic socket failure. In
+        // that case probe the port to tell "already bound" from "not allowed".
+        Socket? probe;
+        try {
+          probe = await Socket.connect(
+            address,
+            port,
+            timeout: const Duration(milliseconds: 400),
+          );
+          inUse = true;
+        } on Object {
+          inUse = false;
+        } finally {
+          probe?.destroy();
+        }
+      }
       _server = null;
       _setState(
         ServiceState.error,

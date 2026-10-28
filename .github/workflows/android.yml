@@ -57,9 +57,11 @@ jobs:
           set -o pipefail
           flutter test --reporter expanded 2>&1 | tee /tmp/test.log
 
-      # Formatting is checked last so that analyzer and test output stay
-      # readable even when the tree is not formatted yet.
-      - name: Verify formatting
+      # The scanner is formatted locally with `dart format lib test`. CI reports
+      # formatting drift as a warning because the contributors cannot always run
+      # the Dart SDK; `release.yml` keeps the hard gate before publishing.
+      - name: Report formatting drift
+        continue-on-error: true
         run: |
           set -o pipefail
           dart format --output=none --set-exit-if-changed lib test 2>&1 | tee /tmp/format.log
