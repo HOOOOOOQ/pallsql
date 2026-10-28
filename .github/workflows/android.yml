@@ -1,0 +1,214 @@
+name: Android CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.47.8
+  JAVA_VERSION: "17"
+
+jobs:
+  quality:
+    name: Analyze and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Static analysis
+        run: |
+          set -o pipefail
+          flutter analyze 2>&1 | tee /tmp/analyze.log
+
+      - name: Unit, service and widget tests
+        run: |
+          set -o pipefail
+          flutter test --reporter expanded 2>&1 | tee /tmp/test.log
+
+      # Formatting is verified last so analyzer and test output stay readable.
+      - name: Verify formatting
+        run: |
+          set -o pipefail
+          dart format --output=none --set-exit-if-changed lib test 2>&1 | tee /tmp/format.log
+
+      - name: Publish analyzer errors
+        if: failure()
+        run: python3 scripts/ci_report.py errors /tmp/analyze.log
+
+      - name: Publish test failures
+        if: failure()
+        run: python3 scripts/ci_report.py test /tmp/test.log
+
+      - name: Publish analyzer notes
+        if: failure()
+        run: python3 scripts/ci_report.py notes /tmp/analyze.log /tmp/format.log
+
+      - name: Print logs
+        if: failure()
+        run: |
+          for f in /tmp/analyze.log /tmp/test.log /tmp/format.log; do
+            [ -f "$f" ] || continue
+            echo "::group::$(basename "$f")"
+            tail -n 60 "$f"
+            echo "::endgroup::"
+          done
+
+      - name: Upload quality logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PALLSQL-quality-logs
+          path: |
+            /tmp/analyze.log
+            /tmp/test.log
+            /tmp/format.log
+            pubspec.lock
+          if-no-files-found: ignore
+          retention-days: 7
+
+  apk:
+    name: Build APKs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Set up Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties', 'pubspec.yaml') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Restore Gradle wrapper when missing
+        run: |
+          set -euo pipefail
+          if [ -x android/gradlew ]; then
+            echo "Gradle wrapper already present."
+            exit 0
+          fi
+          # The Gradle wrapper binaries are generated, not committed. Ask the
+          # Flutter tool to create a throwaway project and copy only the
+          # wrapper files into this android/ folder.
+          tmp="$(mktemp -d)"
+          flutter create --platforms=android --project-name pallsql --org com.pallsql "$tmp/bootstrap"
+          mkdir -p android/gradle/wrapper
+          cp -R "$tmp/bootstrap/android/gradle/wrapper/." android/gradle/wrapper/ || true
+          cp "$tmp/bootstrap/android/gradlew" android/gradlew || true
+          cp "$tmp/bootstrap/android/gradlew.bat" android/gradlew.bat || true
+          chmod +x android/gradlew || true
+          ls -la android/gradle/wrapper android/gradlew || true
+
+      - name: Build debug APK
+        run: |
+          set -o pipefail
+          flutter build apk --debug 2>&1 | tee /tmp/debug-build.log
+
+      - name: Build release APK
+        run: |
+          set -o pipefail
+          flutter build apk --release 2>&1 | tee /tmp/release-build.log
+
+      - name: Verify APK artifacts
+        run: |
+          set -euo pipefail
+          debug=build/app/outputs/flutter-apk/app-debug.apk
+          release=build/app/outputs/flutter-apk/app-release.apk
+          for f in "$debug" "$release"; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Missing APK: $f"
+              exit 1
+            fi
+            size=$(stat -c%s "$f")
+            echo "$f -> $size bytes"
+            if [ "$size" -lt 1000000 ]; then
+              echo "::error::$f is smaller than 1 MB, it cannot be a real Flutter APK"
+              exit 1
+            fi
+          done
+          mkdir -p artifacts
+          cp "$debug" artifacts/PALLSQL-debug.apk
+          cp "$release" artifacts/PALLSQL-release.apk
+          sha256sum artifacts/*.apk > artifacts/SHA256SUMS.txt
+          cat artifacts/SHA256SUMS.txt
+
+      - name: Publish failure details
+        if: failure()
+        run: |
+          python3 scripts/ci_report.py gradle /tmp/debug-build.log /tmp/release-build.log
+          for f in /tmp/debug-build.log /tmp/release-build.log; do
+            [ -f "$f" ] || continue
+            echo "::group::$(basename "$f")"
+            tail -n 80 "$f"
+            echo "::endgroup::"
+          done
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PALLSQL-Android-APK
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PALLSQL-build-logs
+          path: |
+            /tmp/debug-build.log
+            /tmp/release-build.log
+          if-no-files-found: ignore
+          retention-days: 7

@@ -1,0 +1,14 @@
+# The Flutter tool injects the Gradle wrapper on the first build.
+gradle-wrapper.jar
+/gradlew
+/gradlew.bat
+/.gradle
+/captures/
+/local.properties
+GeneratedPluginRegistrant.java
+.cxx/
+
+# Never commit signing material.
+key.properties
+**/*.keystore
+**/*.jks
