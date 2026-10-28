@@ -62,11 +62,18 @@ void main() {
     );
     expect(serversTab, findsOneWidget);
     await tester.tap(serversTab);
+    await tester.pump();
+    final Object? exception = tester.takeException();
+    expect(exception, isNull, reason: 'switching tabs raised: $exception');
+    expect(
+      tester.widget<IndexedStack>(find.byType(IndexedStack)).index,
+      1,
+      reason: 'the Servers tab should be selected',
+    );
     for (int i = 0; i < 6; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
     expect(find.text('Servers'), findsWidgets);
-    expect(tester.takeException(), isNull);
   });
 
   testWidgets('dashboard shows the real stopped state, not a fake runtime',
