@@ -303,7 +303,9 @@ signed with the debug key so they are installable but not store-ready.
 Pipeline CI pada repositori ini sudah diverifikasi berjalan (lihat tab Actions):
 
 - `flutter analyze`: **No issues found**
-- `flutter test`: **103 test lulus** (unit, service, repository, dan widget)
+- `flutter test`: **105 test lulus** (unit, service, repository, dan widget),
+  termasuk uji layout yang merender setiap tab dan setiap layar pada permukaan
+  360x780 dp untuk menangkap overflow
 - `flutter build apk --debug` dan `--release`: **berhasil**, artefak
   `PALLSQL-Android-APK` terunggah (debug + release + checksum)
 - `release.yml` pada tag `v0.1.0`: **berhasil** membuat GitHub Release dengan APK
