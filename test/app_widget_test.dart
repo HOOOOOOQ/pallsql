@@ -95,6 +95,30 @@ void main() {
     );
   });
 
+  testWidgets('every tab renders on a phone sized surface without overflow',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    for (int tab = 0; tab < 5; tab++) {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: <Override>[bootstrapProvider.overrideWithValue(bootstrap)],
+          child: PallSqlApp(initialTab: tab),
+        ),
+      );
+      for (int i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'tab $tab rendered badly on a 360x780 logical surface',
+      );
+    }
+  });
+
   testWidgets('workspace folders exist after bootstrap',
       (WidgetTester tester) async {
     await pumpApp(tester);
