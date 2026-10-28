@@ -90,13 +90,15 @@ void main() {
       1,
       reason: 'the Servers tab should be selected',
     );
-    // Let the Material ripple timers fire before the tree is disposed,
-    // otherwise flutter_test reports a still-pending timer at teardown.
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.pump(const Duration(seconds: 1));
-    await tester.pump(const Duration(seconds: 1));
     expect(tester.takeException(), isNull);
     expect(find.text('Servers'), findsWidgets);
+
+    // A tap makes Material schedule short lived timers (ripples, gesture
+    // deadlines). Let them fire and dispose the tree inside the test, so the
+    // teardown invariant check never sees a still pending timer.
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
   });
 
   testWidgets('dashboard shows the real stopped state, not a fake runtime',
