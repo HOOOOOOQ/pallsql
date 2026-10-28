@@ -8,7 +8,8 @@ aplikasi dipasang. Di dalamnya ada HTTP server sungguhan, database SQLite
 sungguhan, file manager, code editor, project manager, backup ZIP, log viewer,
 dan terminal terbatas berbasis registry perintah.
 
-Rilis terbaru: [v0.1.0](https://github.com/HOOOOOOQ/pallsql/releases/tag/v0.1.0)
+Rilis terbaru: [halaman Releases](https://github.com/HOOOOOOQ/pallsql/releases/latest)
+(APK terpasang langsung, ditandatangani debug key)
 (APK 26,8 MB, ditandatangani dengan debug key). Riwayat build dan artefak ada di
 tab [Actions](https://github.com/HOOOOOOQ/pallsql/actions).
 
@@ -308,8 +309,8 @@ Pipeline CI pada repositori ini sudah diverifikasi berjalan (lihat tab Actions):
   360x780 dp untuk menangkap overflow
 - `flutter build apk --debug` dan `--release`: **berhasil**, artefak
   `PALLSQL-Android-APK` terunggah (debug + release + checksum)
-- `release.yml` pada tag `v0.1.0`: **berhasil** membuat GitHub Release dengan APK
-  dan `SHA256SUMS.txt`
+- `release.yml` pada tag `v0.1.0` dan `v0.1.1`: **berhasil** membuat GitHub
+  Release dengan APK dan `SHA256SUMS.txt`
 
 Yang **belum** diverifikasi karena keterbatasan lingkungan: aplikasi belum
 pernah dijalankan di device/emulator Android sungguhan (tidak ada emulator di
