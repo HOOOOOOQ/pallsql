@@ -11,19 +11,19 @@ import '../../widgets/pallsql_app_bar.dart';
 import '../../widgets/pallsql_card.dart';
 import '../../widgets/pallsql_dialogs.dart';
 import '../../widgets/service_control_button.dart';
-import '../editor/syntax_highlighter.dart';
+import 'syntax_highlighter.dart';
 
 /// Text/code editor for a workspace file.
-class FileEditorPage extends ConsumerStatefulWidget {
-  const FileEditorPage({super.key, required this.relativePath});
+class EditorPage extends ConsumerStatefulWidget {
+  const EditorPage({super.key, required this.relativePath});
 
   final String relativePath;
 
   @override
-  ConsumerState<FileEditorPage> createState() => _FileEditorPageState();
+  ConsumerState<EditorPage> createState() => _EditorPageState();
 }
 
-class _FileEditorPageState extends ConsumerState<FileEditorPage> {
+class _EditorPageState extends ConsumerState<EditorPage> {
   late final String _fileName = p.basename(widget.relativePath);
   late final CodeLanguage _language = languageForFile(_fileName);
   final TextEditingController _searchController = TextEditingController();

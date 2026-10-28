@@ -15,7 +15,7 @@ import '../../widgets/pallsql_card.dart';
 import '../../widgets/pallsql_dialogs.dart';
 import '../../widgets/service_control_button.dart';
 import '../database/database_detail_page.dart';
-import 'file_editor_page.dart';
+import '../editor/editor_page.dart';
 
 /// Workspace file manager.
 class FilesPage extends ConsumerStatefulWidget {
@@ -102,7 +102,7 @@ class _FilesPageState extends ConsumerState<FilesPage> {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (BuildContext context) =>
-            FileEditorPage(relativePath: entry.relativePath),
+            EditorPage(relativePath: entry.relativePath),
       ),
     );
     if (mounted) {
