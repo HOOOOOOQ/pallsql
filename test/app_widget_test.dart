@@ -90,9 +90,8 @@ void main() {
       1,
       reason: 'the Servers tab should be selected',
     );
-    for (int i = 0; i < 6; i++) {
-      await tester.pump(const Duration(milliseconds: 50));
-    }
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.takeException(), isNull);
     expect(find.text('Servers'), findsWidgets);
   });
 

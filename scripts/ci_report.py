@@ -45,6 +45,13 @@ def analyze_lines(lines: list[str], only_errors: bool = False) -> list[str]:
 def test_lines(lines: list[str]) -> list[str]:
     picked: list[str] = []
     for index, line in enumerate(lines):
+        if "Pending timers:" not in line:
+            continue
+        for item in lines[index:index + 30]:
+            stripped = item.strip()
+            if stripped:
+                picked.append(stripped)
+    for index, line in enumerate(lines):
         if "EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK" not in line:
             continue
         block = [item.strip() for item in lines[index:index + 90]]
@@ -65,7 +72,11 @@ def test_lines(lines: list[str]) -> list[str]:
                 or item.startswith("[E]")
                 or " [E]" in item
             )
-            if interesting:
+            if interesting or (
+                offset >= 1
+                and "thrown running a test" in previous
+                and not item.startswith("#")
+            ):
                 picked.append(item)
     if picked:
         return picked[:40]
