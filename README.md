@@ -9,9 +9,8 @@ sungguhan, file manager, code editor, project manager, backup ZIP, log viewer,
 dan terminal terbatas berbasis registry perintah.
 
 Rilis terbaru: [halaman Releases](https://github.com/HOOOOOOQ/pallsql/releases/latest)
-(APK terpasang langsung, ditandatangani debug key)
-(APK 26,8 MB, ditandatangani dengan debug key). Riwayat build dan artefak ada di
-tab [Actions](https://github.com/HOOOOOOQ/pallsql/actions).
+(APK ±26,8 MB, terpasang langsung, ditandatangani debug key). Riwayat build dan
+artefak ada di tab [Actions](https://github.com/HOOOOOOQ/pallsql/actions).
 
 > **Status jujur:** proyek ini sedang dalam pengembangan aktif. Static web
 > server, SQLite, file manager, editor, project, backup, log dan terminal sudah
