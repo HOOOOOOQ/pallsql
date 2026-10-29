@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pallsql/features/shell/home_shell.dart';
@@ -65,18 +67,25 @@ void main() {
       await tester.runAsync(() => disposeTestBootstrap(bootstrap));
     });
 
+    // A pending future is what the splash is for: the real bootstrap is slow,
+    // so the gate must show the loading screen until it resolves.
+    final Completer<AppBootstrap> pending = Completer<AppBootstrap>();
     await tester.pumpWidget(
       StartupGate(
         timeout: const Duration(seconds: 10),
-        createBootstrap: (void Function(String step) onProgress) async {
+        createBootstrap: (void Function(String step) onProgress) {
           onProgress('Workspace folders ready');
           onProgress('SQLite engine ready');
-          return bootstrap;
+          return pending.future;
         },
       ),
     );
     await tester.pump();
-    expect(find.byType(PallsqlSplashScreen), findsOneWidget);
+    expect(find.byType(PallsqlSplashScreen), findsOneWidget,
+        reason: 'DEBUG screen: ${_screenText(tester)}');
+    expect(find.text('Workspace folders ready'), findsOneWidget);
+
+    pending.complete(bootstrap);
 
     for (int i = 0; i < 24; i++) {
       await tester.runAsync(
