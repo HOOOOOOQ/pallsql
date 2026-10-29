@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Android launch window: brand background with the PALLSQL mark. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/pallsql_background" />
+    <item android:gravity="center">
+        <bitmap android:gravity="center" android:src="@mipmap/ic_launcher" />
+    </item>
 </layer-list>

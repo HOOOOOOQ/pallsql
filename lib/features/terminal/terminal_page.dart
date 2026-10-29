@@ -6,11 +6,14 @@ import '../../models/log_entry.dart';
 import '../../providers/app_providers.dart';
 import '../../services/terminal_service.dart';
 import '../../widgets/pallsql_app_bar.dart';
-import '../../widgets/terminal_output.dart';
+import '../../widgets/pallsql_components.dart';
 
 /// Allow-listed command terminal (never a Linux shell).
 class TerminalPage extends ConsumerStatefulWidget {
-  const TerminalPage({super.key});
+  const TerminalPage({super.key, this.openSqlConsole = false});
+
+  /// Opens the SQL console immediately (used by the Database tab).
+  final bool openSqlConsole;
 
   @override
   ConsumerState<TerminalPage> createState() => _TerminalPageState();
@@ -32,10 +35,19 @@ class _TerminalPageState extends ConsumerState<TerminalPage> {
         timestamp: DateTime.now(),
         level: LogLevel.debug,
         source: LogSource.terminal,
-        message: 'PALLSQL terminal - allow-listed commands only.\n'
-            'Type "help" for the registry. No shell, no root.',
+        message: 'PALLSQL terminal - allow-listed commands only, no shell, '
+            'no root.\n'
+            'Type "help" for the command list, or "sql" to open the SQL '
+            'console against a real SQLite database.',
       ),
     );
+    if (widget.openSqlConsole) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _submit('sql');
+        }
+      });
+    }
   }
 
   @override
@@ -63,13 +75,14 @@ class _TerminalPageState extends ConsumerState<TerminalPage> {
     if (command.isEmpty) {
       return;
     }
+    final TerminalService service = ref.read(terminalServiceProvider);
+    final String prompt = service.prompt;
     _input.clear();
     _history.insert(0, command);
     _historyIndex = -1;
-    _append('> $command', level: LogLevel.debug);
+    _append('$prompt $command', level: LogLevel.debug);
     setState(() => _busy = true);
-    final TerminalResult result =
-        await ref.read(terminalServiceProvider).execute(command);
+    final TerminalResult result = await service.execute(command);
     if (!mounted) {
       return;
     }
@@ -96,12 +109,21 @@ class _TerminalPageState extends ConsumerState<TerminalPage> {
   @override
   Widget build(BuildContext context) {
     final TerminalService service = ref.watch(terminalServiceProvider);
+    final bool sqlMode = service.sqlMode;
     return Scaffold(
       appBar: PallSQLAppBar(
-        title: 'Terminal',
-        subtitle: '${service.commands.length} registered commands',
+        title: sqlMode ? 'SQL console' : 'Terminal',
+        subtitle: sqlMode
+            ? 'SQLite dialect - ${service.currentDatabase ?? 'no database'}'
+            : '${service.commands.length} registered commands, no shell',
         showBack: true,
         actions: <Widget>[
+          if (sqlMode)
+            TextButton.icon(
+              onPressed: () => setState(service.exitSqlMode),
+              icon: const Icon(Icons.logout_rounded, size: 15),
+              label: const Text('Exit SQL', style: TextStyle(fontSize: 11)),
+            ),
           IconButton(
             tooltip: 'Clear output',
             icon: const Icon(Icons.cleaning_services_rounded, size: 18),
@@ -115,7 +137,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage> {
             child: Container(
               width: double.infinity,
               color: PallSqlColors.background,
-              child: TerminalOutput(lines: _lines),
+              child: PallSQLTerminal(lines: _lines),
             ),
           ),
           if (_busy) const LinearProgressIndicator(minHeight: 2),
@@ -129,11 +151,35 @@ class _TerminalPageState extends ConsumerState<TerminalPage> {
               top: false,
               child: Column(
                 children: <Widget>[
+                  if (sqlMode)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        children: <Widget>[
+                          const Icon(
+                            Icons.storage_rounded,
+                            size: 13,
+                            color: PallSqlColors.accent,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'SQL console - statements run for real. '
+                              '.help for console commands, \\q to exit.',
+                              style: const TextStyle(
+                                fontSize: 10.5,
+                                color: PallSqlColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   Row(
                     children: <Widget>[
-                      const Text(
-                        '>',
-                        style: TextStyle(
+                      Text(
+                        service.prompt,
+                        style: const TextStyle(
                           color: PallSqlColors.accent,
                           fontFamily: PallSqlColors.monoFontFamily,
                           fontSize: 13,
@@ -152,11 +198,15 @@ class _TerminalPageState extends ConsumerState<TerminalPage> {
                             fontFamily: PallSqlColors.monoFontFamily,
                             fontSize: 12.5,
                           ),
-                          decoration: const InputDecoration(
+                          keyboardType: TextInputType.text,
+                          decoration: InputDecoration(
                             isDense: true,
                             border: InputBorder.none,
-                            hintText: 'server status',
-                            hintStyle: TextStyle(
+                            filled: false,
+                            hintText: sqlMode
+                                ? 'SELECT * FROM sqlite_master;'
+                                : 'server status',
+                            hintStyle: const TextStyle(
                               color: PallSqlColors.textDisabled,
                               fontFamily: PallSqlColors.monoFontFamily,
                               fontSize: 12.5,
@@ -185,7 +235,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage> {
                       scrollDirection: Axis.horizontal,
                       children: <Widget>[
                         for (final TerminalCommand command
-                            in service.commands.take(8))
+                            in service.commands.take(sqlMode ? 4 : 8))
                           Padding(
                             padding: const EdgeInsets.only(right: 6, top: 4),
                             child: GestureDetector(

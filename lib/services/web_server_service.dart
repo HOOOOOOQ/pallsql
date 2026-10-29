@@ -854,11 +854,11 @@ class WebServerService {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PALLSQL local server</title>
 <style>
-body{margin:0;min-height:100vh;display:grid;place-items:center;background:#050706;
-color:#f1f7f2;font:16px/1.5 system-ui,sans-serif}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#101311;
+color:#e4e9e4;font:16px/1.5 system-ui,sans-serif}
 main{max-width:32rem;padding:2rem}
-h1{color:#9bff3d;font-size:1.3rem;letter-spacing:.04em}
-code{color:#9bff3d} p{color:#93a197}
+h1{color:#9bcb91;font-size:1.3rem;letter-spacing:.04em}
+code{color:#9bcb91} p{color:#a0aaa1}
 </style></head>
 <body><main><h1>$heading</h1><p>$detail</p></main></body></html>
 ''';
@@ -887,7 +887,7 @@ code{color:#9bff3d} p{color:#93a197}
       final String message = '''
 <!doctype html>
 <html><head><meta charset="utf-8"><title>PHP runtime not installed</title></head>
-<body style="font-family:sans-serif;background:#050706;color:#f1f7f2;padding:2rem">
+<body style="font-family:sans-serif;background:#101311;color:#e4e9e4;padding:2rem">
 <h1 style="color:#ffb03a">PHP runtime not installed</h1>
 <p>PALLSQL served this request as a PHP script, but no PHP runtime is
 installed, so the source code was <strong>not</strong> sent to the browser.</p>

@@ -75,8 +75,39 @@ artefak ada di tab [Actions](https://github.com/HOOOOOOQ/pallsql/actions).
   FILES/TERMINAL/BACKUP/NETWORK`, filter, pencarian, clear dengan konfirmasi,
   export. Log tidak menyimpan isi file atau token.
 - **Terminal terbatas**: hanya perintah di registry (`help`, `clear`, `pwd`,
-  `ls`, `projects`, `server status|start|stop`, `logs`, `php version`,
-  `database list`). Tidak ada `sh -c`, tidak ada shell bebas.
+  `ls`, `projects`, `server status|start|stop|restart`, `logs`,
+  `php version`, `database list|create|use|info`, `tables`, `desc`, `run`).
+  Tidak ada `sh -c`, tidak ada shell bebas.
+- **SQL console di terminal**: perintah `sql [database]` masuk ke mode console.
+  Setiap baris dijalankan ke SQLite sungguhan; `.tables`, `.databases`, `.use`,
+  `.read`, `.force on|off`, `.help` dan `\q` (keluar) tersedia. Hasil
+  ditampilkan sebagai tabel teks dengan jumlah baris dan durasi.
+- **Kompatibilitas metadata MySQL (terbatas)**: `SHOW DATABASES`,
+  `SHOW TABLES [FROM db]`, `DESCRIBE`, `SHOW COLUMNS`, `SHOW CREATE TABLE`,
+  `SHOW INDEX`, `SELECT VERSION()` dan `SELECT DATABASE()` dijawab dari
+  metadata SQLite yang **nyata** (`sqlite_master`, `PRAGMA table_info`,
+  `PRAGMA index_list`). Perintah MySQL lain (`USE`, `SET`, `FLUSH`,
+  `SHOW STATUS`, `GRANT`, ...) ditolak dengan penjelasan dialect, alasan, dan
+  alternatifnya. Ini **bukan** dukungan MySQL penuh — detail:
+  [`docs/sql-editor.md`](docs/sql-editor.md).
+- **Tema & komponen 0.2**: palet hijau lembut (background `#101311`, accent
+  `#9BCB91`), Material 3, tema gelap default + tema terang opsional, ukuran
+  teks aplikasi, komponen bersama (`PallSQLAppBar`, `PallSQLButton`,
+  `PallSQLCard`, `PallSQLTextField`, `PallSQLStatusBadge`, `PallSQLTerminal`,
+  `PallSQLCodeEditor`, `PallSQLLoading`, `PallSQLDialog`,
+  `PallSQLBottomNavigation`). Detail: [`docs/ui.md`](docs/ui.md).
+- **Loading screen aplikasi**: logo, nama, "Mobile Development Environment",
+  progres langkah bootstrap sungguhan (workspace → konfigurasi → log → device →
+  PHP → SQLite → project → web server), dan layar gagal dengan tombol Retry
+  setelah batas waktu — bukan spinner tanpa akhir.
+- **Halaman About**: aplikasi, versi, package, developer **pallxXx**, tombol
+  *Visit Instagram* yang membuka tautan lewat `url_launcher`, kredit & lisensi
+  (PHP, SQLite, MariaDB, paket Flutter, runtime native) tanpa klaim kepemilikan.
+- **Workspace lengkap** di satu folder `PALLSQL/`: `htdocs/ projects/
+  database/ config/ (php, server, queries) logs/ backups/ tmp/ extensions/
+  terminal/`. Path lengkap ditampilkan di Dashboard dan Settings; tombol buka
+  folder, export workspace ZIP, dan dokumentasi path nyata ada di
+  [`docs/workspace.md`](docs/workspace.md).
 
 ## Status fitur
 
@@ -92,6 +123,11 @@ artefak ada di tab [Actions](https://github.com/HOOOOOOQ/pallsql/actions).
 | Backup & restore | Selesai | ZIP + validasi arsip |
 | Log viewer | Selesai | Filter + export |
 | Terminal terbatas | Selesai | Registry perintah, bukan shell |
+| SQL console di terminal | Selesai | Mode `sql`, dot command, hasil tabel teks |
+| Kompatibilitas metadata MySQL | Sebagian (metadata) | Hanya perintah metadata yang bisa dipetakan ke SQLite; sisanya ditolak dengan alasan |
+| Tema gelap/terang + ukuran teks | Selesai | Palet 0.2, Material 3, tanpa gradient berat |
+| Loading screen + Retry | Selesai | Langkah bootstrap nyata, timeout, tanpa spinner tanpa akhir |
+| Halaman About | Selesai | Developer, Instagram, kredit & lisensi |
 | **Runtime PHP** | **Belum tersedia** | Request `.php` → HTTP 501; desain plugin `PhpBridge` siap dipasangi `php-cgi` native |
 | **MariaDB** | **Belum tersedia** | `MariaDbEngine` hanya melaporkan "unavailable"; tidak ada klaim MySQL |
 | Foreground service Android | Implementasi ada | Notification + `foregroundServiceType=dataSync`; lihat batasan Android |
@@ -312,17 +348,21 @@ signed with the debug key so they are installable but not store-ready.
 Pipeline CI pada repositori ini sudah diverifikasi berjalan (lihat tab Actions):
 
 - `flutter analyze`: **No issues found**
-- `flutter test`: **129 test lulus** (unit, service, repository, dan widget),
-  termasuk uji layout yang merender setiap tab dan setiap layar pada permukaan
-  360x780 dp, uji SQL editor (eksekusi query, error, riwayat, navigasi), uji
-  HTTP server (panjang body, 304 hanya saat cocok, 404 index hilang, port
-  bentrok), dan uji SQLite (CREATE/INSERT/SELECT + data bertahan setelah
-  koneksi ditutup)
+- `flutter test`: **lebih dari 170 test lulus** (unit, service, repository, dan
+  widget), termasuk uji layout yang merender setiap tab dan setiap layar pada
+  permukaan 360x780 dp, uji SQL editor (eksekusi query, error, riwayat,
+  navigasi, pembuatan database dari editor), uji compatibility layer
+  (`SHOW DATABASES`/`SHOW TABLES`/`DESCRIBE`/`SHOW CREATE TABLE`/`SHOW INDEX`
+  dari metadata SQLite nyata, perintah tak didukung), uji SQL console terminal
+  (mode `sql`, dot command, guard `.force`, data benar-benar tersimpan), uji
+  loading screen/Retry, uji tema 0.2 + kontras, uji HTTP server (panjang body,
+  304 hanya saat cocok, 404 index hilang, port bentrok), dan uji SQLite
+  (CREATE/INSERT/SELECT + data bertahan setelah koneksi ditutup)
 - `dart format --output=none --set-exit-if-changed .`: **bersih**
 - `flutter build apk --debug` dan `--release`: **berhasil**, artefak
   `PALLSQL-Android-APK` terunggah (debug + release + checksum)
-- `release.yml` pada tag `v0.1.0` dan `v0.1.1`: **berhasil** membuat GitHub
-  Release dengan APK dan `SHA256SUMS.txt`
+- `release.yml` pada tag `v0.1.0`, `v0.1.1` dan `v0.1.2`: **berhasil** membuat
+  GitHub Release dengan APK dan `SHA256SUMS.txt`
 
 Yang **belum** diverifikasi karena keterbatasan lingkungan: aplikasi belum
 pernah dijalankan di device/emulator Android sungguhan (tidak ada emulator di

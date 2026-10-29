@@ -22,6 +22,7 @@ import '../services/backup_service.dart';
 import '../services/link_opener.dart';
 import '../services/native_bridge.dart';
 import '../services/php_runtime_service.dart';
+import '../services/query_store.dart';
 import '../services/terminal_service.dart';
 import '../services/web_server_service.dart';
 import '../services/workspace_service.dart';
@@ -71,6 +72,11 @@ final Provider<SqliteDatabaseRepository> databaseRepositoryProvider =
 
 final Provider<BackupService> backupServiceProvider = Provider<BackupService>(
   (Ref ref) => ref.watch(bootstrapProvider).backups,
+);
+
+/// Saved SQL snippets live in `PALLSQL/config/queries`.
+final Provider<QueryStore> queryStoreProvider = Provider<QueryStore>(
+  (Ref ref) => QueryStore(ref.watch(bootstrapProvider).workspace.queries),
 );
 
 final Provider<LinkOpener> linkOpenerProvider = Provider<LinkOpener>((Ref ref) {
@@ -737,6 +743,32 @@ class AppTerminalApi implements TerminalApi {
   @override
   Future<List<TableInfo>> tables(String database) =>
       ref.read(databaseRepositoryProvider).listTables(database);
+
+  @override
+  Future<QueryResult> runSql(
+    String database,
+    String sql, {
+    bool allowDestructive = false,
+  }) async {
+    final QueryResult result =
+        await ref.read(databaseRepositoryProvider).execute(
+              database,
+              sql,
+              allowDestructive: allowDestructive,
+            );
+    ref.read(queryHistoryProvider.notifier).refresh();
+    await ref.read(databaseProvider.notifier).refresh();
+    return result;
+  }
+
+  @override
+  Future<void> createDatabase(String name) async {
+    final String? error =
+        await ref.read(databaseProvider.notifier).createDatabase(name);
+    if (error != null) {
+      throw AppFailure(error);
+    }
+  }
 
   @override
   Future<EngineAvailability> databaseAvailability() =>

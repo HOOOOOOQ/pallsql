@@ -245,6 +245,283 @@ class SqlUtils {
     return null;
   }
 
+  static const Set<String> _keywords = <String>{
+    'SELECT',
+    'FROM',
+    'WHERE',
+    'GROUP',
+    'BY',
+    'ORDER',
+    'HAVING',
+    'LIMIT',
+    'OFFSET',
+    'INSERT',
+    'INTO',
+    'VALUES',
+    'UPDATE',
+    'SET',
+    'DELETE',
+    'CREATE',
+    'TABLE',
+    'VIEW',
+    'INDEX',
+    'UNIQUE',
+    'DROP',
+    'ALTER',
+    'ADD',
+    'COLUMN',
+    'RENAME',
+    'TO',
+    'PRIMARY',
+    'KEY',
+    'FOREIGN',
+    'REFERENCES',
+    'NOT',
+    'NULL',
+    'DEFAULT',
+    'AUTOINCREMENT',
+    'AS',
+    'AND',
+    'OR',
+    'ON',
+    'JOIN',
+    'LEFT',
+    'RIGHT',
+    'INNER',
+    'OUTER',
+    'CROSS',
+    'USING',
+    'IN',
+    'IS',
+    'LIKE',
+    'GLOB',
+    'BETWEEN',
+    'EXISTS',
+    'CASE',
+    'WHEN',
+    'THEN',
+    'ELSE',
+    'END',
+    'DISTINCT',
+    'UNION',
+    'ALL',
+    'EXCEPT',
+    'INTERSECT',
+    'ASC',
+    'DESC',
+    'WITH',
+    'RECURSIVE',
+    'PRAGMA',
+    'BEGIN',
+    'COMMIT',
+    'ROLLBACK',
+    'TRANSACTION',
+    'SAVEPOINT',
+    'RELEASE',
+    'EXPLAIN',
+    'QUERY',
+    'PLAN',
+    'IF',
+    'INTEGER',
+    'TEXT',
+    'REAL',
+    'BLOB',
+    'NUMERIC',
+    'VARCHAR',
+    'CHAR',
+    'BOOLEAN',
+    'DATE',
+    'DATETIME',
+    'CHECK',
+    'COLLATE',
+    'CAST',
+    'COUNT',
+    'SUM',
+    'AVG',
+    'MIN',
+    'MAX',
+  };
+
+  /// Words that start a new line in formatted SQL.
+  static const Set<String> _clauseWords = <String>{
+    'SELECT',
+    'FROM',
+    'WHERE',
+    'HAVING',
+    'LIMIT',
+    'OFFSET',
+    'VALUES',
+    'SET',
+    'UNION',
+    'EXCEPT',
+    'INTERSECT',
+    'JOIN',
+  };
+
+  /// Light, deterministic SQL formatter used by the editor's Format button.
+  ///
+  /// It only normalises keyword casing, whitespace and clause line breaks. It
+  /// never changes the meaning of a statement: string literals, quoted
+  /// identifiers and comments are copied verbatim.
+  static String format(String sql) {
+    final List<SqlStatement> statements = splitStatements(sql);
+    if (statements.isEmpty) {
+      return sql.trim();
+    }
+    final List<String> formatted = statements
+        .map((SqlStatement statement) => _formatStatement(statement.sql))
+        .where((String value) => value.isNotEmpty)
+        .toList(growable: false);
+    if (formatted.isEmpty) {
+      return sql.trim();
+    }
+    return '${formatted.join(';\n\n')};';
+  }
+
+  static String _formatStatement(String sql) {
+    final StringBuffer out = StringBuffer();
+    final StringBuffer word = StringBuffer();
+    bool single = false;
+    bool doubleQuote = false;
+    bool backtick = false;
+    bool lineComment = false;
+    bool blockComment = false;
+    int depth = 0;
+
+    void flushWord() {
+      if (word.isEmpty) {
+        return;
+      }
+      final String raw = word.toString();
+      word.clear();
+      final String upper = raw.toUpperCase();
+      if (depth == 0 && _clauseWords.contains(upper)) {
+        final String trimmed = out.toString().trimRight();
+        out
+          ..clear()
+          ..write(trimmed);
+        if (trimmed.isNotEmpty) {
+          out.write('\n');
+        }
+        out.write(upper);
+        return;
+      }
+      out.write(_keywords.contains(upper) ? upper : raw);
+    }
+
+    for (int i = 0; i < sql.length; i++) {
+      final String char = sql[i];
+      final String next = i + 1 < sql.length ? sql[i + 1] : '';
+      if (lineComment) {
+        out.write(char);
+        if (char == '\n') {
+          lineComment = false;
+        }
+        continue;
+      }
+      if (blockComment) {
+        out.write(char);
+        if (char == '*' && next == '/') {
+          out.write(next);
+          i++;
+          blockComment = false;
+        }
+        continue;
+      }
+      if (single || doubleQuote || backtick) {
+        out.write(char);
+        if (single && char == "'") {
+          if (next == "'") {
+            out.write(next);
+            i++;
+          } else {
+            single = false;
+          }
+        } else if (doubleQuote && char == '"') {
+          if (next == '"') {
+            out.write(next);
+            i++;
+          } else {
+            doubleQuote = false;
+          }
+        } else if (backtick && char == '`') {
+          backtick = false;
+        }
+        continue;
+      }
+      if (char == '-' && next == '-') {
+        flushWord();
+        out.write('--');
+        i++;
+        lineComment = true;
+        continue;
+      }
+      if (char == '/' && next == '*') {
+        flushWord();
+        out.write('/*');
+        i++;
+        blockComment = true;
+        continue;
+      }
+      if (char == "'") {
+        flushWord();
+        single = true;
+        out.write(char);
+        continue;
+      }
+      if (char == '"') {
+        flushWord();
+        doubleQuote = true;
+        out.write(char);
+        continue;
+      }
+      if (char == '`') {
+        flushWord();
+        backtick = true;
+        out.write(char);
+        continue;
+      }
+      if (char == '(') {
+        flushWord();
+        depth++;
+        out.write(char);
+        continue;
+      }
+      if (char == ')') {
+        flushWord();
+        if (depth > 0) {
+          depth--;
+        }
+        out.write(char);
+        continue;
+      }
+      if (char == ',') {
+        flushWord();
+        out.write(',');
+        out.write(depth == 0 ? '\n  ' : ' ');
+        continue;
+      }
+      if (char.trim().isEmpty) {
+        flushWord();
+        final String current = out.toString();
+        if (current.isNotEmpty &&
+            !current.endsWith(' ') &&
+            !current.endsWith('\n')) {
+          out.write(' ');
+        }
+        continue;
+      }
+      word.write(char);
+    }
+    flushWord();
+    final List<String> lines = out
+        .toString()
+        .split('\n')
+        .map((String line) => line.trimRight())
+        .toList(growable: false);
+    return lines.join('\n').trim();
+  }
+
   /// Pretty label shown in the query results header.
   static String describe(SqlStatement statement) {
     switch (statement.kind) {

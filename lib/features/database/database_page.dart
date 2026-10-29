@@ -16,6 +16,7 @@ import '../../widgets/pallsql_card.dart';
 import '../../widgets/pallsql_dialogs.dart';
 import '../../widgets/service_control_button.dart';
 import '../logs/logs_page.dart';
+import '../terminal/terminal_page.dart';
 import 'database_detail_page.dart';
 import 'sql_editor_page.dart';
 
@@ -146,7 +147,7 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
     return Scaffold(
       appBar: PallSQLAppBar(
         title: 'Database',
-        subtitle: 'SQLite - offline engine',
+        subtitle: 'SQLite dialect - offline engine',
         actions: <Widget>[
           IconButton(
             tooltip: 'Database logs',
@@ -340,6 +341,11 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
                 'SQLite is an embedded engine: every database is a single file, '
                 'queries run inside the app and everything works offline. It is '
                 'not MySQL or MariaDB, and PALLSQL never labels it as such. '
+                'A compatibility layer answers the MySQL-style metadata '
+                'commands that can be built from real SQLite metadata '
+                '(SHOW DATABASES, SHOW TABLES, DESCRIBE, SHOW CREATE TABLE, '
+                'SHOW INDEX, SELECT VERSION(), SELECT DATABASE()); everything '
+                'else is refused with an explanation instead of a fake result. '
                 'MariaDB needs a native server build plus a data directory '
                 'bootstrap which has not been verified on device, so it stays '
                 'marked unavailable. The SQL editor refuses ATTACH/DETACH so a '
@@ -357,6 +363,17 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
               icon: Icons.terminal_rounded,
               filled: true,
               onPressed: _openSqlEditor,
+            ),
+            const SizedBox(height: 8),
+            ServiceControlButton(
+              label: 'SQL console (terminal)',
+              icon: Icons.keyboard_command_key_rounded,
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (BuildContext context) =>
+                      const TerminalPage(openSqlConsole: true),
+                ),
+              ),
             ),
           ],
         ),

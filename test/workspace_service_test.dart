@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pallsql/core/errors/app_failure.dart';
 import 'package:pallsql/services/workspace_service.dart';
 
 void main() {
@@ -27,6 +28,11 @@ void main() {
       workspace.logs,
       workspace.config,
       workspace.tmp,
+      workspace.extensions,
+      workspace.terminal,
+      workspace.phpConfig,
+      workspace.serverConfig,
+      workspace.queries,
     ]) {
       expect(await folder.exists(), isTrue, reason: folder.path);
     }
@@ -35,13 +41,15 @@ void main() {
     expect(await index.exists(), isTrue);
     final String html = await index.readAsString();
     expect(html, contains('<title>PALLSQL Local Server</title>'));
-    expect(html, contains('Your local server is running'));
+    // The accent-highlighted word is part of the landing page markup.
+    expect(html, contains('Your local server is <span>running</span>'));
     expect(html, contains('PALLSQL/htdocs/index.html'));
     expect(html, contains('name="viewport"'));
     expect(html.toLowerCase(), contains('<!doctype html>'));
-    // Dark background with the neon green accent of the app.
-    expect(html, contains('#050706'));
-    expect(html, contains('#9bff3d'));
+    // Dark surface with the soft green accent of the 0.2 palette.
+    expect(html, contains('#101311'));
+    expect(html, contains('#9bcb91'));
+    expect(html.toLowerCase(), contains('offline'));
   });
 
   test('never overwrites an edited landing page', () async {
@@ -53,6 +61,16 @@ void main() {
 
     expect(await index.readAsString(), '<h1>my own page</h1>');
     expect(await workspace.htdocs.exists(), isTrue);
+  });
+
+  test('exposes workspace relative paths through the path guard', () async {
+    final Workspace workspace = await Workspace.open(root);
+    expect(workspace.pathOf('htdocs'), '${root.path}/htdocs');
+    expect(workspace.locationLabel, workspace.rootPath);
+    expect(
+      () => workspace.pathOf('../escape'),
+      throwsA(isA<PathSecurityFailure>()),
+    );
   });
 
   test('resolves the document root from the active project', () async {

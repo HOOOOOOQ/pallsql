@@ -13,12 +13,15 @@ Usage:
 from __future__ import annotations
 
 import os
+import re
 import sys
 
 MAX_LINES = 120
 LINES_PER_ANNOTATION = 5
 MAX_ANNOTATIONS = 9
 MAX_PAYLOAD = 1100
+
+TEST_FAILURE = re.compile(r"^(?:[^\s]+\s+)?(?:\+\d+\s+-\d+:\s+)?(?P<file>[^\s:]+\.dart): (?P<name>.*?) \[E\]$")
 
 ANALYZE_MARKERS = (" • ", "error •", "warning •", "info •", "Failed", "Error:")
 
@@ -85,11 +88,58 @@ def test_lines(lines: list[str]) -> list[str]:
 
 def _test_marker_lines(lines: list[str]) -> list[str]:
     markers = ("Some tests failed", "Expected:", "Actual:", "Which:", "EXCEPTION",
-               "Error:", "error:", "failed", "FAILED", "Test failed", "[E]")
+               "Error:", "error:", "failed", "FAILED", "Test failed", "[E]",
+               "DEBUG")
     picked = [line.strip() for line in lines if any(m in line for m in markers)]
     if not picked:
         picked = [line.strip() for line in lines[-50:] if line.strip()]
     return picked
+
+
+def failing_lines(lines: list[str]) -> list[str]:
+    """Name of each failing test followed by the details of that failure.
+
+    The expanded reporter marks a failed test with a trailing `[E]`, and prints
+    the assertion block just before it, so the context is collected backwards
+    from the marker. This keeps every failure debuggable from the annotations
+    alone (artifacts live on a CDN that some networks block).
+    """
+    markers = (
+        "Expected:",
+        "Actual:",
+        "Which:",
+        "Bad state",
+        "DEBUG",
+        "was thrown running a test",
+        "main.<anonymous closure>",
+        "Pending timers",
+    )
+    collected: list[str] = []
+    seen: set[str] = set()
+    for index, line in enumerate(lines):
+        match = TEST_FAILURE.search(line.strip())
+        if not match:
+            continue
+        name = f"FAILED {match.group('file')}: {match.group('name')}"
+        if name in seen:
+            continue
+        seen.add(name)
+        details: list[str] = []
+        for back in range(index - 1, max(-1, index - 80), -1):
+            item = lines[back].strip()
+            if not item:
+                continue
+            if " [E]" in item:
+                break
+            if any(marker in item for marker in markers):
+                details.append(item)
+            if len(details) >= 8:
+                break
+        collected.append(name)
+        collected.extend(reversed(details))
+    if collected:
+        return collected
+    return _test_marker_lines(lines)
 
 
 def gradle_lines(lines: list[str]) -> list[str]:
@@ -141,7 +191,7 @@ def emit(kind: str, lines: list[str]) -> None:
 
 def main(argv: list[str]) -> int:
     if len(argv) < 3:
-        print("usage: ci_report.py <analyze|errors|notes|test|gradle|raw> <logfile> [logfile...]")
+        print("usage: ci_report.py <analyze|errors|notes|test|failing|gradle|raw> <logfile> [logfile...]")
         return 2
     mode = argv[1]
     collected: list[str] = []
@@ -155,6 +205,8 @@ def main(argv: list[str]) -> int:
                 collected.append(f"[{label}] {line}")
         elif mode == "test":
             collected.extend([f"[{label}] {line}" for line in test_lines(lines)])
+        elif mode == "failing":
+            collected.extend([f"[{label}] {line}" for line in failing_lines(lines)])
         elif mode == "gradle":
             collected.extend([f"[{label}] {line}" for line in gradle_lines(lines)])
         else:

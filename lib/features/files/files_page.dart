@@ -19,10 +19,13 @@ import '../editor/editor_page.dart';
 
 /// Workspace file manager.
 class FilesPage extends ConsumerStatefulWidget {
-  const FilesPage({super.key, this.initialPath = ''});
+  const FilesPage({super.key, this.initialPath = '', this.titleOverride});
 
   /// Folder to open first (relative to the workspace root).
   final String initialPath;
+
+  /// Optional title, used when the page is opened as a folder shortcut.
+  final String? titleOverride;
 
   @override
   ConsumerState<FilesPage> createState() => _FilesPageState();
@@ -419,7 +422,7 @@ class _FilesPageState extends ConsumerState<FilesPage> {
     final List<FileEntry> visible = _searching ? _searchResults : _entries;
     return Scaffold(
       appBar: PallSQLAppBar(
-        title: 'Files',
+        title: widget.titleOverride ?? 'Files',
         subtitle: _path.isEmpty ? 'PALLSQL workspace' : _path,
         actions: <Widget>[
           IconButton(

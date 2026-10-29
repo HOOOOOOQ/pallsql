@@ -60,6 +60,28 @@ void main() {
       expect(decoded.databaseEngine, 'sqlite');
     });
 
+    test('theme mode and text scale round trip', () {
+      const AppSettings settings = AppSettings(
+        themeMode: AppThemeMode.light,
+        uiTextScale: 1.15,
+      );
+      final AppSettings decoded = AppSettings.fromJson(
+        jsonDecode(jsonEncode(settings.toJson())) as Map<String, Object?>,
+      );
+      expect(decoded.themeMode, AppThemeMode.light);
+      expect(decoded.uiTextScale, closeTo(1.15, 0.0001));
+    });
+
+    test('theme and text scale fall back to safe defaults', () {
+      final AppSettings decoded = AppSettings.fromJson(<String, Object?>{
+        'themeMode': 'neon',
+        'uiTextScale': 4.5,
+      });
+      expect(decoded.themeMode, AppThemeMode.dark);
+      expect(decoded.uiTextScale, 1.0);
+      expect(const AppSettings(uiTextScale: 2.0).validate(), isNotEmpty);
+    });
+
     test('copyWith replaces only the given fields', () {
       const AppSettings settings = AppSettings();
       final AppSettings updated = settings.copyWith(httpPort: 9090);

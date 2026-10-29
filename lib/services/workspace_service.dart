@@ -39,9 +39,28 @@ class Workspace {
   Directory get backups => _dir('backups');
   Directory get logs => _dir('logs');
   Directory get config => _dir('config');
+  Directory get phpConfig => _dir('config/php');
+  Directory get serverConfig => _dir('config/server');
+  Directory get queries => _dir('config/queries');
+  Directory get extensions => _dir('extensions');
+  Directory get terminal => _dir('terminal');
   Directory get tmp => _dir('tmp');
 
   File get settingsFile => File(p.join(config.path, 'settings.json'));
+
+  /// Relative paths of the folders exposed as shortcuts in Settings.
+  static const List<String> shortcutFolders = <String>[
+    'htdocs',
+    'projects',
+    'database',
+    'logs',
+  ];
+
+  /// Absolute path of a workspace relative folder, validated by [guard].
+  String pathOf(String relative) => guard.resolveRelative(relative);
+
+  /// Human readable location of the workspace for Settings and Dashboard.
+  String get locationLabel => rootPath;
   File get projectsFile => File(p.join(config.path, 'projects.json'));
   File get queryHistoryFile => File(p.join(config.path, 'query_history.json'));
   File get appLogFile => File(p.join(logs.path, 'app.log'));
@@ -163,27 +182,31 @@ class Workspace {
     * { box-sizing: border-box; }
     body {
       margin: 0; min-height: 100vh; display: grid; place-items: center;
-      background: #050706; color: #f1f7f2; padding: 1.25rem;
-      font: 16px/1.6 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+      background: #101311; color: #e4e9e4; padding: 1.25rem;
+      font: 16px/1.65 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
     }
     main {
       width: 100%; max-width: 34rem; padding: 1.75rem;
-      background: #0e1411; border: 1px solid #243129; border-radius: 16px;
+      background: #181d19; border: 1px solid #303a32; border-radius: 16px;
     }
     .badge {
       display: inline-block; padding: .25rem .65rem; border-radius: 999px;
-      background: #16201a; color: #9bff3d; font-size: .72rem;
+      background: #232e20; color: #b6d8a8; font-size: .72rem;
       letter-spacing: .14em; text-transform: uppercase;
     }
-    h1 { color: #9bff3d; font-size: 1.45rem; margin: 1rem 0 .5rem; }
-    p { color: #93a197; margin: 0 0 .85rem; }
+    h1 { color: #e4e9e4; font-size: 1.45rem; margin: 1rem 0 .5rem; }
+    h1 span { color: #9bcb91; }
+    p { color: #a0aaa1; margin: 0 0 .85rem; }
     code {
-      color: #9bff3d; background: #101a14; padding: .1rem .35rem;
+      color: #b6d8a8; background: #202721; padding: .1rem .35rem;
       border-radius: 5px; font-size: .9em;
     }
-    ul { margin: 0; padding-left: 1.1rem; color: #93a197; }
+    ul { margin: 0; padding-left: 1.1rem; color: #a0aaa1; }
     li { margin-bottom: .35rem; }
-    .status { margin-top: 1.25rem; font-size: .82rem; color: #5d6a61; }
+    .status {
+      margin-top: 1.25rem; padding-top: .9rem; font-size: .82rem;
+      color: #7b857c; border-top: 1px solid #303a32;
+    }
     @media (max-width: 420px) {
       main { padding: 1.25rem; }
       h1 { font-size: 1.25rem; }
@@ -193,21 +216,21 @@ class Workspace {
 <body>
   <main>
     <span class="badge">PALLSQL</span>
-    <h1>Your local server is running</h1>
+    <h1>Your local server is <span>running</span></h1>
     <p>
-      This page is served from the local file
+      This page is a local file, served from
       <code>PALLSQL/htdocs/index.html</code> by the built-in PALLSQL HTTP
-      server. Nothing here comes from the internet.
+      server. Nothing here is downloaded from the internet.
     </p>
     <p>Everything below works offline, entirely on this device:</p>
     <ul>
       <li>Static <code>HTML</code>, <code>CSS</code>, <code>JavaScript</code></li>
       <li>Images, fonts and other assets</li>
-      <li>SQLite databases and the SQL editor inside the app</li>
+      <li>SQLite databases, the SQL editor and the SQL terminal</li>
     </ul>
     <p class="status">
-      PHP scripts answer HTTP 501 until a PHP runtime is installed, and MariaDB
-      is not bundled. Static sites work today.
+      PHP scripts answer HTTP 501 until a PHP runtime is installed. MariaDB is
+      not bundled. Static sites work today.
     </p>
   </main>
 </body>

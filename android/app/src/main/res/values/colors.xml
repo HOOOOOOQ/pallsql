@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="pallsql_background">#050706</color>
-    <color name="pallsql_accent">#9BFF3D</color>
+    <!-- PALLSQL 0.2 palette: quiet dark surface, soft green accent. -->
+    <color name="pallsql_background">#101311</color>
+    <color name="pallsql_surface">#181D19</color>
+    <color name="pallsql_accent">#9BCB91</color>
+    <color name="pallsql_accent_soft">#B6D8A8</color>
+    <color name="pallsql_text_primary">#E4E9E4</color>
 </resources>

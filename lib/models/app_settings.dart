@@ -1,6 +1,34 @@
 import '../core/constants/app_info.dart';
 import '../core/utils/validators.dart';
 
+/// Colour scheme preference. Dark is the PALLSQL default.
+enum AppThemeMode {
+  dark,
+  light,
+  system;
+
+  String get label {
+    switch (this) {
+      case AppThemeMode.dark:
+        return 'Dark';
+      case AppThemeMode.light:
+        return 'Light';
+      case AppThemeMode.system:
+        return 'System';
+    }
+  }
+
+  static AppThemeMode parse(Object? raw) {
+    final String value = raw?.toString() ?? '';
+    for (final AppThemeMode mode in AppThemeMode.values) {
+      if (mode.name == value) {
+        return mode;
+      }
+    }
+    return AppThemeMode.dark;
+  }
+}
+
 /// User configurable application settings, persisted as
 /// `PALLSQL/config/settings.json`.
 class AppSettings {
@@ -16,6 +44,8 @@ class AppSettings {
     this.notificationsEnabled = true,
     this.databaseEngine = 'sqlite',
     this.activeProjectId = '',
+    this.themeMode = AppThemeMode.dark,
+    this.uiTextScale = 1.0,
   });
 
   final int httpPort;
@@ -41,6 +71,12 @@ class AppSettings {
   /// shared `htdocs` folder.
   final String activeProjectId;
 
+  /// Dark / light / follow the system.
+  final AppThemeMode themeMode;
+
+  /// Global text scale (1.0 = system default), clamped to a comfortable range.
+  final double uiTextScale;
+
   bool get bindToLan => lanAccess;
 
   AppSettings copyWith({
@@ -55,6 +91,8 @@ class AppSettings {
     bool? notificationsEnabled,
     String? databaseEngine,
     String? activeProjectId,
+    AppThemeMode? themeMode,
+    double? uiTextScale,
   }) {
     return AppSettings(
       httpPort: httpPort ?? this.httpPort,
@@ -68,6 +106,8 @@ class AppSettings {
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
       databaseEngine: databaseEngine ?? this.databaseEngine,
       activeProjectId: activeProjectId ?? this.activeProjectId,
+      themeMode: themeMode ?? this.themeMode,
+      uiTextScale: uiTextScale ?? this.uiTextScale,
     );
   }
 
@@ -89,6 +129,9 @@ class AppSettings {
       issues
           .add('PHP binary path must be a relative path inside the workspace');
     }
+    if (uiTextScale < 0.85 || uiTextScale > 1.3) {
+      issues.add('Text size must be between 0.85x and 1.3x');
+    }
     return issues;
   }
 
@@ -106,6 +149,8 @@ class AppSettings {
         'notificationsEnabled': notificationsEnabled,
         'databaseEngine': databaseEngine,
         'activeProjectId': activeProjectId,
+        'themeMode': themeMode.name,
+        'uiTextScale': uiTextScale,
       };
 
   /// Tolerant parser: unknown or invalid values fall back to defaults.
@@ -139,6 +184,16 @@ class AppSettings {
       return parsed;
     }
 
+    double readTextScale() {
+      final Object? raw = json['uiTextScale'];
+      final double? parsed =
+          raw is num ? raw.toDouble() : double.tryParse('$raw');
+      if (parsed == null || parsed < 0.85 || parsed > 1.3) {
+        return defaults.uiTextScale;
+      }
+      return parsed;
+    }
+
     return AppSettings(
       httpPort: readPort(),
       lanAccess: json['lanAccess'] == true,
@@ -161,6 +216,8 @@ class AppSettings {
       )
           ? json['activeProjectId'].toString()
           : '',
+      themeMode: AppThemeMode.parse(json['themeMode']),
+      uiTextScale: readTextScale(),
     );
   }
 }

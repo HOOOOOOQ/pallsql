@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common/sqlite_api.dart';
 
 import '../models/app_settings.dart';
+import '../models/database_models.dart';
 import '../models/log_entry.dart';
 import '../repositories/database_repository.dart';
 import '../repositories/file_repository.dart';
@@ -76,7 +77,9 @@ class AppBootstrap {
     Directory? workspaceRoot,
     NativeBridge? native,
     bool startServerIfConfigured = true,
+    void Function(String step)? onProgress,
   }) async {
+    onProgress?.call('Preparing workspace');
     final Directory root;
     if (workspaceRoot != null) {
       root = workspaceRoot;
@@ -85,14 +88,17 @@ class AppBootstrap {
       root = Directory(p.join(documents.path, 'PALLSQL'));
     }
     final Workspace workspace = await Workspace.open(root);
+    onProgress?.call('Workspace folders ready');
     final SettingsRepository settingsRepository =
         SettingsRepository(workspace.settingsFile);
     final AppSettings settings = await settingsRepository.load();
+    onProgress?.call('Configuration loaded');
     final LogRepository logs = LogRepository(
       file: workspace.appLogFile,
       maxEntries: settings.maxLogEntries,
     );
     await logs.load();
+    onProgress?.call('Log buffer ready');
     logs.info(
       LogSource.app,
       'PALLSQL starting in ${workspace.rootPath}',
@@ -100,6 +106,7 @@ class AppBootstrap {
 
     final NativeBridge bridge = native ?? NativeBridge(logs: logs);
     final NativeDeviceInfo? deviceInfo = await bridge.deviceInfo();
+    onProgress?.call('Device information read');
     if (deviceInfo != null) {
       logs.info(
         LogSource.app,
@@ -116,6 +123,9 @@ class AppBootstrap {
           bridge.isAvailable ? bridge.nativeLibraryDir : null,
     );
     await php.refresh();
+    onProgress?.call(
+      php.info.available ? 'PHP runtime detected' : 'No PHP runtime found',
+    );
 
     final FileRepository files =
         FileRepository(workspace: workspace, logs: logs);
@@ -128,8 +138,25 @@ class AppBootstrap {
       historyFile: workspace.queryHistoryFile,
     );
     await databases.loadHistory();
+    final EngineAvailability sqlite = await databases.availability();
+    logs.info(
+      LogSource.database,
+      sqlite.available
+          ? 'SQLite ${sqlite.version ?? ''} ready'.trim()
+          : 'SQLite unavailable: ${sqlite.reason ?? 'unknown'}',
+    );
+    onProgress?.call(
+      sqlite.available ? 'SQLite engine ready' : 'SQLite engine unavailable',
+    );
     final BackupService backups =
         BackupService(workspace: workspace, logs: logs);
+
+    try {
+      await projects.load();
+    } on Object catch (error) {
+      logs.warning(LogSource.app, 'Project metadata could not be read: $error');
+    }
+    onProgress?.call('Project metadata loaded');
 
     final Directory documentRoot =
         await workspace.resolveDocumentRoot(settings.activeProjectId);
@@ -170,6 +197,7 @@ class AppBootstrap {
         logs.error(LogSource.webServer, 'Autostart failed: $error');
       }
     }
+    onProgress?.call('Environment ready');
     return bootstrap;
   }
 
