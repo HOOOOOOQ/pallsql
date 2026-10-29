@@ -209,11 +209,15 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
     final List<DatabaseInfo> databases =
         overview?.databases ?? const <DatabaseInfo>[];
     final List<QueryHistoryEntry> history = ref.watch(queryHistoryProvider);
-    // A database can disappear between builds (deleted on the Database tab).
-    final String? selected =
-        databases.any((DatabaseInfo info) => info.name == _database)
-            ? _database
-            : null;
+    // A database can disappear between builds (deleted on the Database tab),
+    // so the selection is resolved against the list that is on screen.
+    String? selected;
+    for (final DatabaseInfo info in databases) {
+      if (info.name == _database) {
+        selected = info.name;
+        break;
+      }
+    }
 
     return Scaffold(
       appBar: PallSQLAppBar(
