@@ -92,18 +92,43 @@ Bind ke alamat non-loopback ditolak sampai pengguna mengaktifkan "Share on LAN".
 Workflow: `.github/workflows/mariadb-android.yml`.
 
 1. Unduh `https://archive.mariadb.org/mariadb-<versi>/source/mariadb-<versi>.tar.gz`
-   dan verifikasi SHA-256 (`MARIADB_SHA256`).
-2. Cross-compile dengan NDK 27 dan toolchain CMake Android:
+   dan bandingkan SHA-256 dengan `MARIADB_SHA256`. Bila nilainya belum dipin,
+   workflow **tidak** berpura-pura memverifikasi: ia memberi peringatan dan
+   mencatat hash sebenarnya ke `native/src/SOURCE_SHA256.txt` + build report.
+2. **Patch portabilitas** (hanya pada source hasil ekstrak, bukan kode server):
+   * `CMakeLists.txt`: probe `MYSQL_CHECK_READLINE()` dilewati saat `ANDROID`
+     karena NDK tidak menyediakan ncurses dan `mariadbd` tidak pernah menautkan
+     readline;
+   * `cmake/mariadb_connector_c.cmake`: dengan `WITH_SSL=bundled` Connector/C
+     memaksa GnuTLS di semua sistem non-Windows; untuk Android backend TLS
+     klien di-set `OFF` (PALLSQL tidak memakai Connector/C, kliennya sendiri
+     berbicara protokol MariaDB lewat loopback).
+3. **Host tools**: cross-compile MariaDB membutuhkan `comp_err`, `uca-dump`,
+   `gen_lex_hash`, `gen_lex_token`. Workflow membangunnya lebih dulu secara
+   native (`ninja import_executables`) lalu menyerahkan
+   `native/build-host/import_executables.cmake` lewat `-DIMPORT_EXECUTABLES`.
+4. Cross-compile dengan CMake 3.22.1 dari Android SDK (NDK 27 menulis
+   `build/cmake/flags.cmake` untuk CMake lama sehingga `IN_LIST` butuh
+   `-DCMAKE_POLICY_DEFAULT_CMP0057=NEW`) dan toolchain Android:
    `-DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-24`.
-3. Build hanya target `mariadbd`, dengan plugin yang tidak dibutuhkan
+5. `native/android-flags.cmake` di-*include* lewat `CMAKE_PROJECT_INCLUDE` untuk
+   memaksa `<ctype.h>`, `<pwd.h>`, `<unistd.h>`, dll. — Bionic tidak menarik
+   header POSIX ke setiap translation unit seperti glibc, sehingga
+   `mysys/get_password.c` dan `mysys/mf_pack.c` gagal dengan
+   *"call to undeclared function"*.
+6. Build hanya target `mariadbd`, dengan plugin yang tidak dibutuhkan
    dimatikan (ARCHIVE, FEDERATEDX, CONNECT, SPHINX, S3, MROONGA, WSREP,
    TOKUDB, MARIABACKUP, embedded server).
-4. **Validasi** keluaran: `readelf -h` harus `AArch64`, `readelf -d` dicatat
+7. **Validasi** keluaran: `readelf -h` harus `AArch64`, `readelf -d` dicatat
    untuk melihat `NEEDED`/`RPATH`.
-5. Paketkan sebagai `jniLibs/arm64-v8a/libmariadbd.so` (di-extract Android
+8. Paketkan sebagai `jniLibs/arm64-v8a/libmariadbd.so` (di-extract Android
    karena `useLegacyPackaging = true`) plus aset bootstrap
    (`assets/mariadb/*.sql`, charsets, error messages).
-6. Unggah artifact `mariadb-runtime-arm64-v8a`; job APK mengambil artifact itu.
+9. Unggah artifact `mariadb-runtime-arm64-v8a`; job APK mengambil artifact itu.
+
+Semua kegagalan configure/build memancarkan blok error CMake/kmpiler sebagai
+*annotation* (`::error::`) supaya penyebabnya terbaca langsung di PR tanpa
+mengunduh artifact log.
 
 ### Komponen yang paling mungkin bermasalah saat porting
 
@@ -126,7 +151,7 @@ Workflow: `.github/workflows/mariadb-android.yml`.
 | Repository SQL (CREATE DATABASE, USE, DDL, INSERT/SELECT/UPDATE/DELETE, multi-statement, DESCRIBE, SHOW CREATE TABLE) | **Teruji otomatis** terhadap server sungguhan |
 | Migrasi data SQLite lama | Kode ada; pengujian memakai berkas `.db` contoh |
 | `MariaDBServiceManager` + `MariaDbProcessManager.kt` | Kode ada; **belum dijalankan di perangkat** karena binary Android belum dibangun |
-| `libmariadbd.so` untuk arm64 | **Belum tersedia** — workflow build native ada, hasilnya harus dilihat di tab Actions |
+| `libmariadbd.so` untuk arm64 | **Belum tersedia** — workflow build native sudah melewati configure, host tools, dan lanjut ke kompilasi `mariadbd`; hasil terakhir dicatat di tab Actions |
 | PHP ↔ MariaDB | Belum diuji; runtime PHP belum tersedia |
 
 Sampai baris "libmariadbd.so" berstatus tersedia, aplikasi menampilkan

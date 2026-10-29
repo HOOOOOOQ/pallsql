@@ -211,6 +211,17 @@ jobs:
             string(APPEND CMAKE_C_FLAGS " -include ${header}")
           endforeach()
           string(APPEND CMAKE_CXX_FLAGS " -include cctype -include cstring")
+
+          # MariaDB's perl driven feature probes mis-detect a few libc facts
+          # when the compiler cannot run a test binary. These symbols really do
+          # exist in bionic, and without them the sources take dead fallback
+          # paths (`bmove` ends up undefined, `sigwait` is redeclared with a
+          # conflicting prototype).
+          foreach(fact HAVE_MEMCPY HAVE_MEMMOVE HAVE_SIGWAIT
+                       HAVE_STRING_H HAVE_STRINGS_H HAVE_UNISTD_H)
+            string(APPEND CMAKE_C_FLAGS " -D${fact}=1")
+            string(APPEND CMAKE_CXX_FLAGS " -D${fact}=1")
+          endforeach()
           EOF
           cat native/android-flags.cmake
 
@@ -262,6 +273,26 @@ jobs:
               done
               exit 1
             }
+
+      - name: Record the detected libc features
+        run: |
+          set -euo pipefail
+          header="native/build/include/my_config.h"
+          if [ ! -f "$header" ]; then
+            echo "::warning::my_config.h was not generated"
+            exit 0
+          fi
+          missing=0
+          for macro in $(grep -o 'HAVE_[A-Z0-9_]*' "$SOURCE_DIR/config.h.cmake" | sort -u); do
+            if ! grep -q "define $macro " "$header"; then
+              missing=$((missing + 1))
+              if [ "$missing" -le 10 ]; then
+                echo "::warning::$macro was not detected by the probes"
+              fi
+            fi
+          done
+          echo "probes missed $missing HAVE_ macros (first 10 listed above)"
+          grep -E "define HAVE_(MEMCPY|MEMMOVE|SIGWAIT|UNISTD_H) " "$header" || true
 
       # The 10 annotation slots per step let the exact compiler/configure error
       # reach the pull request without downloading the log artifact.
