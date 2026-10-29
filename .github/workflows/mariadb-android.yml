@@ -192,6 +192,19 @@ jobs:
           test -f native/build-host/import_executables.cmake
           echo "HOST_IMPORT_EXECUTABLES=$PWD/native/build-host/import_executables.cmake" >> "$GITHUB_ENV"
 
+      # bionic does not pull <ctype.h> into every translation unit the way
+      # glibc does, so legacy C files (`mysys/get_password.c` uses isspace() and
+      # iscntrl()) fail with "call to undeclared library function". Force
+      # including the header is a compile time fix; no server code is edited.
+      - name: Prepare the Android compile flags
+        run: |
+          set -euo pipefail
+          cat > native/android-flags.cmake <<'EOF'
+          string(APPEND CMAKE_C_FLAGS " -include ctype.h")
+          string(APPEND CMAKE_CXX_FLAGS " -include cctype")
+          EOF
+          cat native/android-flags.cmake
+
       # NDK r27's `build/cmake/flags.cmake` uses `IN_LIST`, which needs policy
       # CMP0057 NEW. MariaDB asks for an older CMake, so the policy is forced on
       # the command line; the first attempt failed with exactly that error.
@@ -232,6 +245,7 @@ jobs:
             -DCMAKE_CROSSCOMPILING=ON \
             -DCMAKE_POLICY_DEFAULT_CMP0057=NEW \
             -DIMPORT_EXECUTABLES="$HOST_IMPORT_EXECUTABLES" \
+            -DCMAKE_PROJECT_INCLUDE="$PWD/native/android-flags.cmake" \
             2>&1 | tee native/build-configure.log || {
               echo "::error::The cmake configure step failed; the error block of native/build-configure.log follows."
               grep -m1 -A9 "CMake Error" native/build-configure.log | while IFS= read -r line; do

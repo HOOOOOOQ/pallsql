@@ -70,7 +70,8 @@ void main() {
     expect(terminal.currentDatabase, schema);
 
     final TerminalResult create = await terminal.execute(
-      'CREATE TABLE users (id INTEGER PRIMARY KEY, name VARCHAR(60) NOT NULL);',
+      'CREATE TABLE users (id INT AUTO_INCREMENT PRIMARY KEY, '
+      'name VARCHAR(60) NOT NULL);',
     );
     expect(text(create), isNot(contains('Error')));
     expect(text(create), contains('statement'));
@@ -97,7 +98,8 @@ void main() {
   test('metadata statements are answered by the server itself', () async {
     final TerminalService terminal = service();
     await terminal.execute('sql $schema');
-    await terminal.execute('CREATE TABLE users (id INTEGER PRIMARY KEY);');
+    await terminal.execute(
+      'CREATE TABLE users (id INT AUTO_INCREMENT PRIMARY KEY);');
 
     expect(text(await terminal.execute('SHOW TABLES;')), contains('users'));
     expect(text(await terminal.execute('DESCRIBE users;')), contains('Field'));
@@ -138,7 +140,8 @@ void main() {
     final TerminalService terminal = service();
     await terminal.execute('sql $schema');
     await terminal.execute(
-      'CREATE TABLE users (id INTEGER PRIMARY KEY, name VARCHAR(60));',
+      'CREATE TABLE users (id INT AUTO_INCREMENT PRIMARY KEY, '
+      'name VARCHAR(60));',
     );
     await terminal.execute("INSERT INTO users (name) VALUES ('keep me');");
 
@@ -163,7 +166,8 @@ void main() {
     final TerminalService terminal = service();
     await terminal.execute('use $schema');
     await terminal.execute('sql $schema');
-    await terminal.execute('CREATE TABLE items (id INTEGER PRIMARY KEY);');
+    await terminal.execute(
+      'CREATE TABLE items (id INT AUTO_INCREMENT PRIMARY KEY);');
 
     expect(text(await terminal.execute('.tables')), contains('items'));
     expect(text(await terminal.execute('desc items')), contains('Field'));

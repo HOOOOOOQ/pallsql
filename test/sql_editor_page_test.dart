@@ -119,7 +119,8 @@ void main() {
 
     await tester.enterText(
       find.byType(TextField),
-      'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL);\n'
+      'CREATE TABLE users (id INT AUTO_INCREMENT PRIMARY KEY, '
+      'name VARCHAR(64) NOT NULL);\n'
       "INSERT INTO users (name) VALUES ('PALLSQL');\n"
       'SELECT * FROM users;',
     );
