@@ -9,7 +9,7 @@ sungguhan, file manager, code editor, project manager, backup ZIP, log viewer,
 dan terminal terbatas berbasis registry perintah.
 
 Rilis terbaru: [halaman Releases](https://github.com/HOOOOOOQ/pallsql/releases/latest)
-(APK ±26,8 MB, terpasang langsung, ditandatangani debug key). Riwayat build dan
+(APK ±27,4 MB, terpasang langsung, ditandatangani debug key). Riwayat build dan
 artefak ada di tab [Actions](https://github.com/HOOOOOOQ/pallsql/actions).
 
 > **Status jujur:** proyek ini sedang dalam pengembangan aktif. Static web
@@ -361,8 +361,9 @@ Pipeline CI pada repositori ini sudah diverifikasi berjalan (lihat tab Actions):
 - `dart format --output=none --set-exit-if-changed .`: **bersih**
 - `flutter build apk --debug` dan `--release`: **berhasil**, artefak
   `PALLSQL-Android-APK` terunggah (debug + release + checksum)
-- `release.yml` pada tag `v0.1.0`, `v0.1.1` dan `v0.1.2`: **berhasil** membuat
-  GitHub Release dengan APK dan `SHA256SUMS.txt`
+- `release.yml` pada tag `v0.1.0`, `v0.1.1`, `v0.1.2` dan `v0.2.0`:
+  **berhasil** membuat GitHub Release dengan APK dan `SHA256SUMS.txt`
+  (release `v0.2.0`: `PALLSQL-v0.2.0.apk`, 27.399.399 byte)
 
 Yang **belum** diverifikasi karena keterbatasan lingkungan: aplikasi belum
 pernah dijalankan di device/emulator Android sungguhan (tidak ada emulator di
