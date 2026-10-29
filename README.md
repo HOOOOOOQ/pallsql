@@ -162,15 +162,40 @@ lib/
   repositories/   Log, Settings, Database (SQLite), File, Project
   services/       WebServerService, PhpRuntimeService, BackupService,
                   TerminalService, WorkspaceService, NativeBridge,
-                  AppBootstrap, MimeTypes, LinkOpener
+                  AppBootstrap, MimeTypes, LinkOpener, SqlCompatibility,
+                  QueryStore
   providers/      app_providers.dart (Riverpod graph)
-  widgets/        komponen UI reusable
+  widgets/        komponen UI reusable (PallSQLAppBar, PallSQLButton,
+                  PallSQLCard, PallSQLTextField, PallSQLStatusBadge,
+                  PallSQLTerminal, PallSQLCodeEditor, PallSQLLoading,
+                  PallSQLDialog, PallSQLBottomNavigation)
   features/       dashboard, servers, php, database, files, editor,
-                  projects, logs, terminal, backups, settings, shell
+                  projects, logs, terminal, backups, settings, shell,
+                  startup, about
 android/          host Android (Kotlin, manifest, Gradle KTS)
 test/             unit, service, repository, dan widget test
-docs/             catatan arsitektur, PHP runtime, release
+docs/             architecture, http-server, sql-editor, ui, workspace,
+                  release
 ```
+
+## Perubahan 0.2.0
+
+- **UI/tema**: palet hijau lembut (bukan neon), Material 3, tema gelap default
+  + tema terang opsional, pengaturan ukuran teks, komponen bersama baru.
+- **Startup**: layar loading berbranding dengan progres langkah bootstrap nyata
+  dan layar gagal + Retry setelah batas waktu.
+- **SQL editor**: picker database + engine, Execute / Stop (aman di batas
+  statement) / Clear / Format, Save & Load query, riwayat, durasi, jumlah baris,
+  tab hasil & pesan, copy/export CSV, mode fullscreen.
+- **Terminal**: SQL console nyata (`sql [database]`, dot command, `\q`) dan
+  perintah baru `use`, `tables`, `desc`, `run`, `storage`, `version`.
+- **Kompatibilitas metadata MySQL** yang jujur: hanya perintah metadata yang
+  bisa dipetakan ke metadata SQLite; sisanya ditolak dengan alasan dan
+  alternatif.
+- **Halaman About** dengan developer, tautan Instagram yang berfungsi, kredit &
+  lisensi.
+- **CI**: laporan kegagalan kini menyebut nama test yang gagal beserta konteks
+  assertion langsung di anotasi job.
 
 ## Menjalankan secara lokal
 
