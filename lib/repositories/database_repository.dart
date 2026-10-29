@@ -294,7 +294,7 @@ class MariaDbRepository implements DatabaseRepository {
 
     final Stopwatch stopwatch = Stopwatch()..start();
     await _use(safe);
-    final int? threadId = _client.connectionId;
+    final int threadId = _client.connectionId;
     cancel?.attach(() => _killQuery(threadId));
 
     MariaDbBatch batch;

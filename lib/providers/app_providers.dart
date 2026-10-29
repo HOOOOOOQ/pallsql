@@ -813,7 +813,7 @@ class AppTerminalApi implements TerminalApi {
     final bool ok = await manager.start();
     await ref.read(databaseProvider.notifier).refresh();
     final MariaDbStatus status = manager.snapshot();
-    return ok ? '${status.message}' : 'MariaDB did not start: ${status.message}';
+    return ok ? status.message : 'MariaDB did not start: ${status.message}';
   }
 
   @override
