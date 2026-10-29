@@ -17,6 +17,7 @@ import '../about/about_page.dart';
 import '../backups/backups_page.dart';
 import '../files/files_page.dart';
 import '../php/php_page.dart';
+import 'mariadb_config_page.dart';
 
 /// Settings tab: appearance, editor, server, storage, workspace and about.
 class SettingsPage extends ConsumerStatefulWidget {
@@ -501,6 +502,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   monospace: true,
                 ),
                 const SizedBox(height: 8),
+                _SettingAction(
+                  icon: Icons.storage_rounded,
+                  label: 'MariaDB server configuration',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (BuildContext context) =>
+                          const MariaDbConfigPage(),
+                    ),
+                  ),
+                ),
                 _SettingAction(
                   icon: Icons.code_rounded,
                   label: 'PHP configuration and runtime install',

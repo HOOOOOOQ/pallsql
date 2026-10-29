@@ -18,6 +18,7 @@ import '../../widgets/service_control_button.dart';
 import '../logs/logs_page.dart';
 import '../terminal/terminal_page.dart';
 import 'database_detail_page.dart';
+import 'legacy_data_card.dart';
 import 'sql_editor_page.dart';
 
 /// Database tab: server status, MariaDB schemas and query history.
@@ -377,6 +378,7 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
                 ),
               ),
             ),
+            const LegacyDataCard(),
           ],
         ),
       ),

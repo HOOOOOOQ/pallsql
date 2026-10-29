@@ -85,6 +85,8 @@ jobs:
           sudo mariadb -e "SELECT user, host, plugin FROM mysql.user WHERE user='pallsql';"
 
       - name: Unit, service and widget tests
+        # A hung widget test must fail the job, never block it for hours.
+        timeout-minutes: 45
         env:
           # Turns the real server integration tests on. The guard below fails
           # the job if the suite silently skipped.
@@ -95,11 +97,25 @@ jobs:
           PALLSQL_MARIADB_PASSWORD: "pallsql_ci_pw"
         run: |
           set -o pipefail
-          flutter test --reporter expanded 2>&1 | tee /tmp/test.log
+          : > /tmp/test.log
+          status=0
+          # Each file runs on its own so a stuck widget test is named in the
+          # log instead of hiding behind one giant run. `timeout` and the
+          # per-test limit kill a hang; nothing is skipped and any failure
+          # still fails the job.
+          for file in $(find test -name '*_test.dart' | sort); do
+            echo "::group::$file"
+            if ! timeout 480 flutter test "$file" --reporter expanded --timeout 120s 2>&1 | tee -a /tmp/test.log; then
+              echo "::error::Tests failed or timed out: $file"
+              status=1
+            fi
+            echo "::endgroup::"
+          done
           if grep -q "SKIPPED: set PALLSQL_MARIADB_IT" /tmp/test.log; then
             echo "::error::The MariaDB integration suite did not run"
             exit 1
           fi
+          exit "$status"
 
       # Formatting is verified last so analyzer and test output stay readable.
       - name: Verify formatting

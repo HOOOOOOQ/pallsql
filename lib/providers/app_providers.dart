@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
+import 'package:sqflite/sqflite.dart' as sqflite;
 
 import '../core/errors/app_failure.dart';
 import '../models/app_settings.dart';
@@ -19,6 +20,7 @@ import '../repositories/project_repository.dart';
 import '../core/contracts/controllers.dart';
 import '../services/app_bootstrap.dart';
 import '../services/backup_service.dart';
+import '../services/legacy_sqlite_migration.dart';
 import '../services/link_opener.dart';
 import '../services/mariadb/mariadb_service.dart';
 import '../services/native_bridge.dart';
@@ -410,6 +412,23 @@ class DatabaseNotifier extends AsyncNotifier<DatabaseOverview>
 }
 
 /// The native MariaDB service manager (lifecycle, config, logs).
+/// Reader for the SQLite files PALLSQL 0.1/0.2 created.
+///
+/// This is the **only** provider that imports sqflite, and the only way the app
+/// can still open an SQLite file: read-only, on explicit user request, to copy
+/// the data into MariaDB. Nothing in the write path can reach it, so SQLite
+/// cannot come back as an engine.
+final Provider<LegacySqliteMigration> legacyMigrationProvider =
+    Provider<LegacySqliteMigration>((Ref ref) {
+  final AppBootstrap bootstrap = ref.watch(bootstrapProvider);
+  return LegacySqliteMigration(
+    directory: Directory(p.join(bootstrap.workspace.rootPath, 'database')),
+    repository: bootstrap.databases,
+    factory: sqflite.databaseFactory,
+    logs: bootstrap.logs,
+  );
+});
+
 final Provider<MariaDBServiceManager> mariadbServiceProvider =
     Provider<MariaDBServiceManager>(
   (Ref ref) => ref.watch(bootstrapProvider).mariadb,

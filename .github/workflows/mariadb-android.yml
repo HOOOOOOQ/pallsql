@@ -104,6 +104,64 @@ jobs:
           fi
           tar -xzf /tmp/mariadb.tar.gz -C native/src
           ls native/src
+          # Exported here: every later step (patch, host tools, cross build)
+          # works on the same extracted tree.
+          echo "SOURCE_DIR=$PWD/$(find native/src -maxdepth 1 -type d -name 'mariadb-*' | head -1)" >> "$GITHUB_ENV"
+
+      # The ncurses/readline probe is unconditional in CMakeLists.txt, while
+      # `mariadbd` never links readline and the NDK ships no curses for the
+      # target ABI. The extracted source is patched (never the server code) and
+      # the patch is recorded in the build report.
+      - name: Patch the unportable ncurses/readline probe
+        run: |
+          set -euo pipefail
+          python3 - "$SOURCE_DIR/CMakeLists.txt" <<'PY'
+          import pathlib
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          text = path.read_text()
+          old = "MYSQL_CHECK_READLINE()"
+          if text.count(old) != 1:
+              raise SystemExit("the readline call site changed in the MariaDB sources")
+          path.write_text(
+              text.replace(
+                  old,
+                  "# PALLSQL Android port: no ncurses in the NDK, mariadbd does not\n"
+                  "# link readline, so the probe is skipped for this build.\n"
+                  "IF(NOT ANDROID)\n  MYSQL_CHECK_READLINE()\nENDIF()",
+              )
+          )
+          PY
+          grep -n -A2 "IF(NOT ANDROID)" "$SOURCE_DIR/CMakeLists.txt"
+
+      # Cross compiling MariaDB needs a handful of host tools (comp_err,
+      # uca-dump, gen_lex_hash, gen_lex_token ...). They are built once natively
+      # and exported through import_executables.cmake, exactly as the project
+      # documents, instead of emulating AArch64 binaries.
+      - name: Build the host import tools
+        run: |
+          set -euo pipefail
+          "$CMAKE_BIN" -S "$SOURCE_DIR" -B native/build-host \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWITH_UNIT_TESTS=OFF \
+            2>&1 | tee native/build-host-configure.log || {
+              echo "::error::The native configure step for the host tools failed."
+              grep -m1 -A9 "CMake Error" native/build-host-configure.log | while IFS= read -r line; do
+                [ -n "$line" ] && echo "::error::$line"
+              done
+              exit 1
+            }
+          ninja -C native/build-host import_executables 2>&1 | tee native/build-host.log || {
+            echo "::error::The host import tools could not be built."
+            tail -n 10 native/build-host.log | while IFS= read -r line; do
+              [ -n "$line" ] && echo "::error::$line"
+            done
+            exit 1
+          }
+          test -f native/build-host/import_executables.cmake
+          echo "HOST_IMPORT_EXECUTABLES=$PWD/native/build-host/import_executables.cmake" >> "$GITHUB_ENV"
 
       # NDK r27's `build/cmake/flags.cmake` uses `IN_LIST`, which needs policy
       # CMP0057 NEW. MariaDB asks for an older CMake, so the policy is forced on
@@ -111,9 +169,7 @@ jobs:
       - name: Configure the cross build
         run: |
           set -euo pipefail
-          source_untarred="$(find native/src -maxdepth 1 -type d -name 'mariadb-*' | head -1)"
-          echo "SOURCE_DIR=$source_untarred" >> "$GITHUB_ENV"
-          "$CMAKE_BIN" -S "$source_untarred" -B native/build \
+          "$CMAKE_BIN" -S "$SOURCE_DIR" -B native/build \
             -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE="$NDK_ROOT/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI=arm64-v8a \
@@ -122,8 +178,6 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=native/install \
             -DWITH_UNIT_TESTS=OFF \
             -DWITH_EMBEDDED_SERVER=OFF \
-            -DWITHOUT_CLIENT=ON \
-            -DWITH_READLINE=OFF \
             -DWITH_MARIABACKUP=OFF \
             -DWITH_MROONGA=OFF \
             -DWITH_WSREP=OFF \
@@ -148,6 +202,7 @@ jobs:
             -DPLUGIN_CONNECT=NO \
             -DCMAKE_CROSSCOMPILING=ON \
             -DCMAKE_POLICY_DEFAULT_CMP0057=NEW \
+            -DIMPORT_EXECUTABLES="$HOST_IMPORT_EXECUTABLES" \
             2>&1 | tee native/build-configure.log || {
               echo "::error::The cmake configure step failed; the error block of native/build-configure.log follows."
               grep -m1 -A9 "CMake Error" native/build-configure.log | while IFS= read -r line; do
