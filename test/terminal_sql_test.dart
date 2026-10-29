@@ -53,7 +53,8 @@ void main() {
 
   test('SQL console runs real statements against a real database', () async {
     final TerminalService terminal = service();
-    final TerminalResult created = await terminal.execute('database create app');
+    final TerminalResult created =
+        await terminal.execute('database create app');
     expect(text(created), contains('app.db'));
 
     final TerminalResult enter = await terminal.execute('sql app');
@@ -70,7 +71,8 @@ void main() {
 
     await terminal.execute("INSERT INTO users (name) VALUES ('pallxXx');");
 
-    final TerminalResult select = await terminal.execute('SELECT * FROM users;');
+    final TerminalResult select =
+        await terminal.execute('SELECT * FROM users;');
     final String table = text(select);
     expect(table, contains('id'));
     expect(table, contains('name'));

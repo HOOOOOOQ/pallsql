@@ -210,8 +210,7 @@ class QueryResult {
           .toList(),
       error: json['error']?.toString(),
       cancelled: json['cancelled'] == true,
-      statementsExecuted:
-          (json['statementsExecuted'] as num?)?.toInt() ?? 0,
+      statementsExecuted: (json['statementsExecuted'] as num?)?.toInt() ?? 0,
     );
   }
 

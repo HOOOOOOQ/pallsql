@@ -230,9 +230,8 @@ class PallSqlTheme {
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith<Color?>(
-          (Set<WidgetState> states) => states.contains(WidgetState.selected)
-              ? accent
-              : null,
+          (Set<WidgetState> states) =>
+              states.contains(WidgetState.selected) ? accent : null,
         ),
         trackColor: WidgetStateProperty.resolveWith<Color?>(
           (Set<WidgetState> states) => states.contains(WidgetState.selected)
@@ -255,9 +254,7 @@ class PallSqlTheme {
     Color primary,
     Color secondary,
   ) {
-    return base
-        .apply(bodyColor: primary, displayColor: primary)
-        .copyWith(
+    return base.apply(bodyColor: primary, displayColor: primary).copyWith(
           headlineSmall:
               base.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
           titleLarge: base.titleLarge?.copyWith(fontWeight: FontWeight.w600),

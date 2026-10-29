@@ -43,8 +43,7 @@ class PallsqlSplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color accent =
-        failed ? PallSqlColors.error : PallSqlColors.accent;
+    final Color accent = failed ? PallSqlColors.error : PallSqlColors.accent;
     return Scaffold(
       backgroundColor: PallSqlColors.background,
       body: SafeArea(

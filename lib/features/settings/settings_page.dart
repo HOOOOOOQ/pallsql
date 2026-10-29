@@ -177,8 +177,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   onChanged: (double value) {
                     ref.read(settingsProvider.notifier).update(
                           settings.copyWith(
-                            uiTextScale:
-                                (value * 20).roundToDouble() / 20,
+                            uiTextScale: (value * 20).roundToDouble() / 20,
                           ),
                         );
                   },
@@ -305,7 +304,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const SizedBox(height: 16),
           const PallSqlSectionHeader(
             title: 'Workspace',
-            subtitle: 'One folder shared by files, server, database and terminal',
+            subtitle:
+                'One folder shared by files, server, database and terminal',
           ),
           PallSqlCard(
             child: Column(
@@ -595,9 +595,8 @@ class _Choice extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
         decoration: BoxDecoration(
-          color: selected
-              ? PallSqlColors.accentMuted
-              : PallSqlColors.surfaceMuted,
+          color:
+              selected ? PallSqlColors.accentMuted : PallSqlColors.surfaceMuted,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: selected ? PallSqlColors.accentDeep : PallSqlColors.border,

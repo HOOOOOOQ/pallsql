@@ -56,14 +56,13 @@ class _StartupGateState extends State<StartupGate> {
       _step = 'Preparing workspace';
     });
     try {
-      final AppBootstrap bootstrap = await widget
-          .createBootstrap(_onProgress)
-          .timeout(
-            widget.timeout,
-            onTimeout: () => throw TimeoutException(
-              'Startup took longer than ${widget.timeout.inSeconds}s',
-            ),
-          );
+      final AppBootstrap bootstrap =
+          await widget.createBootstrap(_onProgress).timeout(
+                widget.timeout,
+                onTimeout: () => throw TimeoutException(
+                  'Startup took longer than ${widget.timeout.inSeconds}s',
+                ),
+              );
       if (!mounted) {
         await bootstrap.dispose();
         return;

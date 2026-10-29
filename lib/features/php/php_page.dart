@@ -129,7 +129,8 @@ class _PhpPageState extends ConsumerState<PhpPage> {
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
     setState(() => _busy = true);
     try {
-      final PhpSelfTest result = await ref.read(bootstrapProvider).php.selfTest();
+      final PhpSelfTest result =
+          await ref.read(bootstrapProvider).php.selfTest();
       if (!mounted) {
         return;
       }

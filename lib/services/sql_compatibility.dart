@@ -156,8 +156,7 @@ class SqlCompatibility {
     String normalised,
     List<String> tokens,
   ) {
-    final String subject =
-        tokens.length > 1 ? tokens[1].toUpperCase() : '';
+    final String subject = tokens.length > 1 ? tokens[1].toUpperCase() : '';
     switch (subject) {
       case 'DATABASES':
       case 'SCHEMAS':
@@ -224,8 +223,7 @@ class SqlCompatibility {
 
   static String _identifier(String raw) {
     String value = raw.trim();
-    while (value.isNotEmpty &&
-        (value.endsWith(',') || value.endsWith(';'))) {
+    while (value.isNotEmpty && (value.endsWith(',') || value.endsWith(';'))) {
       value = value.substring(0, value.length - 1).trimRight();
     }
     if (value.length >= 2) {

@@ -30,7 +30,8 @@ class AboutPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final String workspacePath = ref.watch(bootstrapProvider).workspace.rootPath;
+    final String workspacePath =
+        ref.watch(bootstrapProvider).workspace.rootPath;
     return Scaffold(
       appBar: const PallSQLAppBar(title: 'About', showBack: true),
       body: ListView(

@@ -52,11 +52,11 @@ void main() {
   });
 
   test('state colours are driven by the real service state', () {
-    expect(PallSqlTheme.stateColor(ServiceState.running),
-        PallSqlColors.success);
+    expect(
+        PallSqlTheme.stateColor(ServiceState.running), PallSqlColors.success);
     expect(PallSqlTheme.stateColor(ServiceState.error), PallSqlColors.error);
-    expect(PallSqlTheme.stateColor(ServiceState.starting),
-        PallSqlColors.warning);
+    expect(
+        PallSqlTheme.stateColor(ServiceState.starting), PallSqlColors.warning);
     expect(PallSqlTheme.stateColor(ServiceState.unavailable),
         PallSqlColors.textDisabled);
   });

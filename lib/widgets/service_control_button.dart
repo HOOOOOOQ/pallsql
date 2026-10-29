@@ -39,7 +39,9 @@ class ServiceControlButton extends StatelessWidget {
       onPressed: onPressed,
       variant: destructive
           ? PallSQLButtonVariant.danger
-          : (filled ? PallSQLButtonVariant.primary : PallSQLButtonVariant.secondary),
+          : (filled
+              ? PallSQLButtonVariant.primary
+              : PallSQLButtonVariant.secondary),
     );
   }
 }

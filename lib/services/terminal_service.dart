@@ -104,9 +104,8 @@ List<TerminalLine> renderQueryResult(
   if (result.hasResultSet) {
     final List<String> headers = result.columns;
     final List<List<String>> cells = result.rows
-        .map((List<String?> row) => row
-            .map((String? cell) => cell ?? 'NULL')
-            .toList(growable: false))
+        .map((List<String?> row) =>
+            row.map((String? cell) => cell ?? 'NULL').toList(growable: false))
         .toList(growable: false);
     final List<int> widths = <int>[
       for (int i = 0; i < headers.length; i++)
@@ -128,8 +127,7 @@ List<TerminalLine> renderQueryResult(
       rule.write('-' * widths[i]);
     }
     lines.add(TerminalLine(rule.toString(), level: LogLevel.debug));
-    final int shown =
-        cells.length > maxRows ? maxRows : cells.length;
+    final int shown = cells.length > maxRows ? maxRows : cells.length;
     for (int row = 0; row < shown; row++) {
       final StringBuffer buffer = StringBuffer();
       for (int i = 0; i < headers.length; i++) {
@@ -288,10 +286,14 @@ class TerminalService {
 
   Future<TerminalResult> _executeInSqlMode(String input) async {
     final String lower = input.toLowerCase();
-    if (lower == '\\q' || lower == 'exit' || lower == '.exit' || lower == '\\quit') {
+    if (lower == '\\q' ||
+        lower == 'exit' ||
+        lower == '.exit' ||
+        lower == '\\quit') {
       _sqlMode = false;
       return const TerminalResult(<TerminalLine>[
-        TerminalLine('Left the SQL console. PALLSQL shell commands are active again.'),
+        TerminalLine(
+            'Left the SQL console. PALLSQL shell commands are active again.'),
       ]);
     }
     if (input.startsWith('.')) {
@@ -336,7 +338,8 @@ class TerminalService {
         final bool found = await selectDatabase(args.first);
         if (!found) {
           return TerminalResult(<TerminalLine>[
-            TerminalLine('Unknown database: ${args.first}', level: LogLevel.error),
+            TerminalLine('Unknown database: ${args.first}',
+                level: LogLevel.error),
           ]);
         }
         return TerminalResult(<TerminalLine>[
@@ -362,7 +365,8 @@ class TerminalService {
       case 'read':
         if (args.isEmpty) {
           return const TerminalResult(<TerminalLine>[
-            TerminalLine('Usage: .read <path/to/file.sql>', level: LogLevel.warning),
+            TerminalLine('Usage: .read <path/to/file.sql>',
+                level: LogLevel.warning),
           ]);
         }
         return _runSqlFile(args.first);
@@ -380,7 +384,8 @@ class TerminalService {
     return const TerminalResult(<TerminalLine>[
       TerminalLine('SQL console - statements run through the PALLSQL engine.'),
       TerminalLine('  <sql>;              run a statement (SQLite dialect)'),
-      TerminalLine('  SHOW DATABASES;     translated from real workspace files'),
+      TerminalLine(
+          '  SHOW DATABASES;     translated from real workspace files'),
       TerminalLine('  SHOW TABLES;        real sqlite_master metadata'),
       TerminalLine('  DESCRIBE <table>;   real PRAGMA table_info metadata'),
       TerminalLine('  SELECT VERSION();   real engine version'),
@@ -389,7 +394,8 @@ class TerminalService {
       TerminalLine('  .use <database>     switch database'),
       TerminalLine('  .read <file.sql>    execute a script from the workspace'),
       TerminalLine('  .force on|off       allow destructive statements'),
-      TerminalLine('  \\q                  leave the SQL console', level: LogLevel.debug),
+      TerminalLine('  \\q                  leave the SQL console',
+          level: LogLevel.debug),
     ]);
   }
 
@@ -407,7 +413,8 @@ class TerminalService {
     final List<DatabaseInfo> databases = await api.databases();
     if (databases.isEmpty) {
       return const TerminalResult(<TerminalLine>[
-        TerminalLine('No databases yet. Create one with: database create <name>'),
+        TerminalLine(
+            'No databases yet. Create one with: database create <name>'),
       ]);
     }
     return TerminalResult(<TerminalLine>[
@@ -440,7 +447,8 @@ class TerminalService {
     }
     if (sql.length > AppInfo.maxSqlScriptBytes) {
       return const TerminalResult(<TerminalLine>[
-        TerminalLine('Script is too large for the console', level: LogLevel.error),
+        TerminalLine('Script is too large for the console',
+            level: LogLevel.error),
       ]);
     }
     try {
@@ -585,7 +593,8 @@ class TerminalService {
           }
           if (target == null) {
             return TerminalResult(<TerminalLine>[
-              TerminalLine('Unknown database: ${args.first}', level: LogLevel.error),
+              TerminalLine('Unknown database: ${args.first}',
+                  level: LogLevel.error),
               TerminalLine('Available: '
                   '${databases.map((DatabaseInfo d) => d.name).join(', ')}'),
             ]);
@@ -621,7 +630,8 @@ class TerminalService {
         final bool found = await selectDatabase(args.first);
         if (!found) {
           return TerminalResult(<TerminalLine>[
-            TerminalLine('Unknown database: ${args.first}', level: LogLevel.error),
+            TerminalLine('Unknown database: ${args.first}',
+                level: LogLevel.error),
           ]);
         }
         return TerminalResult(<TerminalLine>[
@@ -916,7 +926,8 @@ class TerminalService {
         if (action == 'use') {
           if (args.length < 2) {
             return const TerminalResult(<TerminalLine>[
-              TerminalLine('Usage: database use <name>', level: LogLevel.warning),
+              TerminalLine('Usage: database use <name>',
+                  level: LogLevel.warning),
             ]);
           }
           final bool found = await selectDatabase(args[1]);
@@ -931,7 +942,8 @@ class TerminalService {
           final String? database = args.length > 1 ? args[1] : _database;
           if (database == null) {
             return const TerminalResult(<TerminalLine>[
-              TerminalLine('Usage: database info [name]', level: LogLevel.warning),
+              TerminalLine('Usage: database info [name]',
+                  level: LogLevel.warning),
             ]);
           }
           final List<TableInfo> tables = await api.tables(database);

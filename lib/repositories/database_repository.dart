@@ -349,8 +349,7 @@ class SqliteDatabaseRepository implements DatabaseEngine {
         } else if (statement.kind == SqlStatementKind.mutation) {
           final int affected = await db.rawUpdate(statement.sql);
           rowsAffected += affected;
-          if (statement.keyword == 'INSERT' ||
-              statement.keyword == 'REPLACE') {
+          if (statement.keyword == 'INSERT' || statement.keyword == 'REPLACE') {
             final List<Map<String, Object?>> idRows =
                 await db.rawQuery('SELECT last_insert_rowid() AS id');
             final Object? id = idRows.isEmpty ? null : idRows.first['id'];

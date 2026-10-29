@@ -124,9 +124,8 @@ class PallSQLButton extends StatelessWidget {
       child: Center(child: content),
     );
 
-    final Widget sized = expand
-        ? SizedBox(width: double.infinity, child: button)
-        : button;
+    final Widget sized =
+        expand ? SizedBox(width: double.infinity, child: button) : button;
     if (tooltip == null) {
       return sized;
     }
@@ -180,9 +179,8 @@ class PallSQLTextField extends StatelessWidget {
       maxLines: obscure ? 1 : maxLines,
       onChanged: onChanged,
       onFieldSubmitted: onSubmitted,
-      validator: validator == null
-          ? null
-          : (String? value) => validator!(value ?? ''),
+      validator:
+          validator == null ? null : (String? value) => validator!(value ?? ''),
       style: TextStyle(
         color: PallSqlColors.textPrimary,
         fontSize: fontSize,

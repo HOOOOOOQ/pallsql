@@ -62,7 +62,8 @@ void main() {
   testWidgets('the gate boots the workspace and opens the dashboard',
       (WidgetTester tester) async {
     // Real file I/O has to run outside the fake async zone of a widget test.
-    final AppBootstrap bootstrap = (await tester.runAsync(createTestBootstrap))!;
+    final AppBootstrap bootstrap =
+        (await tester.runAsync(createTestBootstrap))!;
     addTearDown(() async {
       await tester.runAsync(() => disposeTestBootstrap(bootstrap));
     });

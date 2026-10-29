@@ -38,8 +38,8 @@ void main() {
       expect(SqlCompatibility.parse('DESCRIBE "users";')?.table, 'users');
       expect(SqlCompatibility.parse('SHOW TABLES FROM app')?.database, 'app');
       expect(SqlCompatibility.parse('SHOW TABLES IN `app`')?.database, 'app');
-      expect(SqlCompatibility.parse('SHOW CREATE TABLE [users]')?.table,
-          'users');
+      expect(
+          SqlCompatibility.parse('SHOW CREATE TABLE [users]')?.table, 'users');
       expect(SqlCompatibility.parse('-- note\nSHOW TABLES')?.kind,
           SqlCompatibilityKind.showTables);
     });
