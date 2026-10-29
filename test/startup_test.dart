@@ -83,7 +83,7 @@ void main() {
     await tester.pump();
     expect(find.byType(PallsqlSplashScreen), findsOneWidget,
         reason: 'DEBUG screen: ${_screenText(tester)}');
-    expect(find.text('Workspace folders ready'), findsOneWidget);
+    expect(find.text('SQLite engine ready'), findsOneWidget);
 
     pending.complete(bootstrap);
 
