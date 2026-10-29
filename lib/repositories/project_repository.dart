@@ -438,14 +438,14 @@ class ProjectRepository {
 :root { color-scheme: dark; }
 body {
   margin: 0; min-height: 100vh; display: grid; place-items: center;
-  background: #050706; color: #f1f7f2;
+  background: #101311; color: #e4e9e4;
   font: 16px/1.6 system-ui, -apple-system, sans-serif;
 }
 main { max-width: 34rem; padding: 2rem; }
-h1 { color: #9bff3d; font-size: 1.5rem; }
+h1 { color: #9bcb91; font-size: 1.5rem; }
 button {
   margin-top: 1rem; padding: .6rem 1rem; border-radius: .5rem;
-  border: 1px solid #243129; background: #16201a; color: #9bff3d;
+  border: 1px solid #303a32; background: #232e20; color: #9bcb91;
   font-weight: 600;
 }
 ''';
@@ -465,8 +465,8 @@ header('Content-Type: text/html; charset=utf-8');
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>PHP on PALLSQL</title></head>
-<body style="font-family:system-ui;background:#050706;color:#f1f7f2;padding:2rem">
-  <h1 style="color:#9bff3d">Hello from PHP <?= htmlspecialchars(PHP_VERSION) ?></h1>
+<body style="font-family:system-ui;background:#101311;color:#e4e9e4;padding:2rem">
+  <h1 style="color:#9bcb91">Hello from PHP <?= htmlspecialchars(PHP_VERSION) ?></h1>
   <p>This file is executed by the PHP runtime, never served as source code.</p>
 </body>
 </html>
@@ -480,8 +480,8 @@ header('Content-Type: text/html; charset=utf-8');
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>PALLSQL form</title></head>
-<body style="font-family:system-ui;background:#050706;color:#f1f7f2;padding:2rem">
-  <h1 style="color:#9bff3d">Send a message</h1>
+<body style="font-family:system-ui;background:#101311;color:#e4e9e4;padding:2rem">
+  <h1 style="color:#9bcb91">Send a message</h1>
   <form method="post" action="submit.php">
     <label>Your name<br><input name="name" required value="<?= htmlspecialchars(\$name) ?>"></label><br><br>
     <label>Message<br><textarea name="message" rows="4" cols="30"></textarea></label><br><br>
@@ -500,10 +500,10 @@ header('Content-Type: text/html; charset=utf-8');
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Submitted</title></head>
-<body style="font-family:system-ui;background:#050706;color:#f1f7f2;padding:2rem">
-  <h1 style="color:#9bff3d">Thanks<?= \$name === '' ? '' : ', ' . htmlspecialchars(\$name) ?></h1>
+<body style="font-family:system-ui;background:#101311;color:#e4e9e4;padding:2rem">
+  <h1 style="color:#9bcb91">Thanks<?= \$name === '' ? '' : ', ' . htmlspecialchars(\$name) ?></h1>
   <p><?= htmlspecialchars(\$message === '' ? 'No message received.' : \$message) ?></p>
-  <p><a style="color:#9bff3d" href="index.php">Back to the form</a></p>
+  <p><a style="color:#9bcb91" href="index.php">Back to the form</a></p>
 </body>
 </html>
 ''';
@@ -520,7 +520,7 @@ try {
     \$pdo->prepare('INSERT INTO notes (body, created_at) VALUES (?, ?)')
         ->execute(['Created by the PALLSQL sample', date('c')]);
     \$rows = \$pdo->query('SELECT id, body, created_at FROM notes ORDER BY id DESC LIMIT 10')->fetchAll(PDO::FETCH_ASSOC);
-    echo '<h1 style="color:#9bff3d">SQLite rows</h1><ul>';
+    echo '<h1 style="color:#9bcb91">SQLite rows</h1><ul>';
     foreach (\$rows as \$row) {
         echo '<li>#' . htmlspecialchars((string)\$row['id']) . ' ' . htmlspecialchars(\$row['body']) . '</li>';
     }

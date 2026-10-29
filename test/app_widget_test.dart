@@ -5,12 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pallsql/app.dart';
 import 'package:pallsql/core/theme/pallsql_theme.dart';
+import 'package:pallsql/features/about/about_page.dart';
 import 'package:pallsql/features/dashboard/dashboard_page.dart';
 import 'package:pallsql/features/database/database_page.dart';
 import 'package:pallsql/features/database/sql_editor_page.dart';
 import 'package:pallsql/features/files/files_page.dart';
 import 'package:pallsql/features/servers/servers_page.dart';
 import 'package:pallsql/features/settings/settings_page.dart';
+import 'package:pallsql/features/terminal/terminal_page.dart';
 import 'package:pallsql/models/service_status.dart';
 import 'package:pallsql/providers/app_providers.dart';
 import 'package:pallsql/services/app_bootstrap.dart';
@@ -166,6 +168,8 @@ void main() {
       'files': const FilesPage(),
       'settings': const SettingsPage(),
       'sql editor': const SqlEditorPage(),
+      'about': const AboutPage(),
+      'terminal': const TerminalPage(),
     };
 
     for (final MapEntry<String, Widget> entry in screens.entries) {
@@ -199,7 +203,12 @@ void main() {
       'backups',
       'logs',
       'config',
+      'config/php',
+      'config/server',
+      'config/queries',
       'tmp',
+      'extensions',
+      'terminal',
     ]) {
       expect(
         Directory('${root.path}/$folder').existsSync(),

@@ -119,6 +119,21 @@ class ColumnInfo {
   }
 }
 
+/// Cooperative cancellation token for multi-statement scripts.
+///
+/// SQLite cannot interrupt a single running statement through sqflite, so
+/// PALLSQL only offers Stop for scripts: the token is checked between
+/// statements, which is a real (documented) boundary.
+class SqlCancelToken {
+  bool _cancelled = false;
+
+  bool get isCancelled => _cancelled;
+
+  void cancel() => _cancelled = true;
+
+  void reset() => _cancelled = false;
+}
+
 /// Result of a SQL statement executed by the user.
 class QueryResult {
   const QueryResult({
@@ -130,6 +145,8 @@ class QueryResult {
     this.lastInsertRowId,
     this.notices = const <String>[],
     this.error,
+    this.cancelled = false,
+    this.statementsExecuted = 0,
   });
 
   final List<String> columns;
@@ -140,6 +157,12 @@ class QueryResult {
   final int? lastInsertRowId;
   final List<String> notices;
   final String? error;
+
+  /// True when the user stopped the script between two statements.
+  final bool cancelled;
+
+  /// How many statements actually ran (equal to [statements] when complete).
+  final int statementsExecuted;
 
   bool get hasResultSet => columns.isNotEmpty;
   bool get isEmpty => rows.isEmpty;
@@ -156,6 +179,8 @@ class QueryResult {
         'lastInsertRowId': lastInsertRowId,
         'notices': notices,
         'error': error,
+        'cancelled': cancelled,
+        'statementsExecuted': statementsExecuted,
       };
 
   static QueryResult fromJson(Map<String, Object?> json) {
@@ -184,6 +209,9 @@ class QueryResult {
           .map((Object? e) => e?.toString() ?? '')
           .toList(),
       error: json['error']?.toString(),
+      cancelled: json['cancelled'] == true,
+      statementsExecuted:
+          (json['statementsExecuted'] as num?)?.toInt() ?? 0,
     );
   }
 

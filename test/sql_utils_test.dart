@@ -81,6 +81,37 @@ SELECT 2;
       );
     });
 
+    test('format uppercases keywords and breaks clauses', () {
+      final String formatted =
+          SqlUtils.format('select * from users where id = 1;');
+      expect(formatted, contains('SELECT'));
+      expect(formatted, contains('\nFROM'));
+      expect(formatted, contains('\nWHERE'));
+      expect(formatted.endsWith(';'), isTrue);
+      expect(formatted, contains('users'));
+    });
+
+    test('format leaves string literals untouched', () {
+      final String formatted =
+          SqlUtils.format("insert into t values ('from where select');");
+      expect(formatted, contains("'from where select'"));
+      expect(formatted, contains('VALUES'));
+    });
+
+    test('format keeps multiple statements separated', () {
+      final String formatted = SqlUtils.format(
+        'create table t (id integer); select * from t;',
+      );
+      expect(';'.allMatches(formatted).length, 2);
+      expect(formatted, contains('CREATE TABLE'));
+    });
+
+    test('format is stable when the input is already formatted', () {
+      final String once = SqlUtils.format('select id from t where id > 0;');
+      final String twice = SqlUtils.format(once);
+      expect(twice, once);
+    });
+
     test('describes statements for the UI', () {
       expect(
         SqlUtils.describe(SqlUtils.classify('SELECT 1')),

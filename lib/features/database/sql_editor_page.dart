@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/app_failure.dart';
@@ -6,15 +9,18 @@ import '../../core/theme/pallsql_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/sql_utils.dart';
 import '../../core/utils/validators.dart';
+import '../../models/app_settings.dart';
 import '../../models/database_models.dart';
 import '../../providers/app_providers.dart';
 import '../../repositories/database_repository.dart';
-import '../../widgets/code_editor_panel.dart';
+import '../../services/app_bootstrap.dart';
+import '../../services/query_store.dart';
+import '../../services/sql_compatibility.dart';
 import '../../widgets/pallsql_app_bar.dart';
 import '../../widgets/pallsql_card.dart';
+import '../../widgets/pallsql_components.dart';
 import '../../widgets/pallsql_dialogs.dart';
 import '../../widgets/query_result_view.dart';
-import '../../widgets/service_control_button.dart';
 import '../editor/syntax_highlighter.dart';
 
 /// Standalone SQL editor: pick a database, write SQL, run it, read the result.
@@ -22,6 +28,10 @@ import '../editor/syntax_highlighter.dart';
 /// The page is the single entry point for ad-hoc SQL. It uses the shared
 /// [SqliteDatabaseRepository] from the bootstrap, so it reuses the very same
 /// SQLite connections as the table browser; no second driver is created.
+///
+/// MySQL-style metadata statements (`SHOW TABLES`, `DESCRIBE`, ...) are answered
+/// by the compatibility layer from real SQLite metadata; the header always says
+/// which dialect is active.
 class SqlEditorPage extends ConsumerStatefulWidget {
   const SqlEditorPage({super.key, this.initialDatabase});
 
@@ -38,8 +48,12 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
       HighlightingTextController(language: CodeLanguage.sql);
   String? _database;
   QueryResult? _result;
+  SqlCancelToken? _cancelToken;
   bool _running = false;
+  bool _cancellable = false;
   bool _creating = false;
+  bool _fullscreen = false;
+  int _tab = 0;
 
   SqliteDatabaseRepository get _repository =>
       ref.read(databaseRepositoryProvider);
@@ -52,6 +66,7 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
 
   @override
   void dispose() {
+    _cancelToken?.cancel();
     _sqlController.dispose();
     super.dispose();
   }
@@ -67,6 +82,7 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
     setState(() {
       _database = name;
       _result = null;
+      _tab = 0;
     });
     if (name != null) {
       _previewSchema(name);
@@ -93,7 +109,7 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
   }
 
   Future<void> _createDatabase() async {
-    final String? name = await showPromptDialog(
+    final String? name = await PallSQLDialog.prompt(
       context: context,
       title: 'New SQLite database',
       label: 'Database name',
@@ -121,6 +137,9 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
 
   /// Runs the statements in the editor against the selected database.
   Future<void> _execute() async {
+    if (_running) {
+      return;
+    }
     final List<DatabaseInfo> databases =
         ref.read(databaseProvider).valueOrNull?.databases ??
             const <DatabaseInfo>[];
@@ -139,10 +158,11 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
       _snack('Enter a SQL statement', error: true);
       return;
     }
-    final bool destructive = SqlUtils.splitStatements(sql)
+    final List<SqlStatement> parsed = SqlUtils.splitStatements(sql);
+    final bool destructive = parsed
         .any((SqlStatement statement) => SqlUtils.isDestructive(statement.sql));
     if (destructive) {
-      final bool confirmed = await showConfirmDialog(
+      final bool confirmed = await PallSQLDialog.confirm(
         context: context,
         title: 'Destructive statement',
         message: 'This script drops data or modifies rows without a WHERE '
@@ -154,20 +174,35 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
         return;
       }
     }
-    setState(() => _running = true);
+    final SqlCancelToken token = SqlCancelToken();
+    _cancelToken = token;
+    setState(() {
+      _running = true;
+      _cancellable = parsed.length > 1;
+      _tab = 0;
+    });
     try {
-      final QueryResult result =
-          await _repository.execute(database, sql, allowDestructive: true);
+      final QueryResult result = await _repository.execute(
+        database,
+        sql,
+        allowDestructive: true,
+        cancel: token,
+      );
       if (!mounted) {
         return;
       }
       setState(() {
         _result = result;
         _running = false;
+        _cancellable = false;
       });
       ref.read(queryHistoryProvider.notifier).refresh();
       if (result.error != null) {
         _snack(result.error!, error: true);
+      } else if (result.cancelled) {
+        _snack(
+          'Stopped after ${result.statementsExecuted} statement(s)',
+        );
       }
     } on AppFailure catch (failure) {
       if (!mounted) {
@@ -175,6 +210,7 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
       }
       setState(() {
         _running = false;
+        _cancellable = false;
         _result = QueryResult.failure(failure.combined);
       });
       ref.read(queryHistoryProvider.notifier).refresh();
@@ -185,10 +221,18 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
       }
       setState(() {
         _running = false;
+        _cancellable = false;
         _result = QueryResult.failure('$error');
       });
       _snack('$error', error: true);
     }
+  }
+
+  /// Cooperative stop: SQLite cannot abort a running statement, so the token is
+  /// checked between statements of a multi statement script.
+  void _stop() {
+    _cancelToken?.cancel();
+    _snack('Stopping after the current statement...');
   }
 
   void _clear() {
@@ -196,11 +240,273 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
     setState(() => _result = null);
   }
 
-  void _useHistoryEntry(QueryHistoryEntry entry) {
-    _database = entry.database;
-    _sqlController.text = entry.sql;
-    setState(() => _result = null);
+  void _format() {
+    final String text = _sqlController.text;
+    if (text.trim().isEmpty) {
+      _snack('Nothing to format', error: true);
+      return;
+    }
+    final String formatted = SqlUtils.format(text);
+    _sqlController.text = formatted;
+    _sqlController.selection = TextSelection.collapsed(
+      offset: _sqlController.text.length,
+    );
+    setState(() {});
+    _snack('SQL formatted');
   }
+
+  void _useHistoryEntry(QueryHistoryEntry entry) {
+    setState(() {
+      _database = entry.database;
+      _result = null;
+    });
+    _sqlController.text = entry.sql;
+  }
+
+  // ---------------------------------------------------------------------
+  // Save / load snippets
+  // ---------------------------------------------------------------------
+
+  Future<void> _saveQuery() async {
+    final String sql = _sqlController.text.trim();
+    if (sql.isEmpty) {
+      _snack('Write a statement before saving', error: true);
+      return;
+    }
+    final String? name = await PallSQLDialog.prompt(
+      context: context,
+      title: 'Save query',
+      label: 'Query name',
+      message: 'Saved as a .sql file in PALLSQL/config/queries.',
+      confirmLabel: 'Save',
+      validator: Validators.entryNameError,
+    );
+    if (name == null || !mounted) {
+      return;
+    }
+    try {
+      final QueryStore store = ref.read(queryStoreProvider);
+      await store.save(name, sql);
+      if (!mounted) {
+        return;
+      }
+      _snack('Saved ${name.replaceAll('.sql', '')}.sql');
+    } on AppFailure catch (failure) {
+      if (!mounted) {
+        return;
+      }
+      _snack(failure.combined, error: true);
+    }
+  }
+
+  Future<void> _loadQuery() async {
+    final QueryStore store = ref.read(queryStoreProvider);
+    List<SavedQuery> queries;
+    try {
+      queries = await store.list();
+    } on AppFailure catch (failure) {
+      if (!mounted) {
+        return;
+      }
+      _snack(failure.combined, error: true);
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    if (queries.isEmpty) {
+      _snack('No saved queries yet - use Save query first');
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: PallSqlColors.surfaceElevated,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) {
+        return SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            children: <Widget>[
+              const Text(
+                'Saved queries',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: PallSqlColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              for (final SavedQuery query in queries)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: const Icon(
+                    Icons.description_outlined,
+                    size: 18,
+                    color: PallSqlColors.accent,
+                  ),
+                  title: Text(
+                    query.fileName,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontFamily: PallSqlColors.monoFontFamily,
+                      color: PallSqlColors.textPrimary,
+                    ),
+                  ),
+                  subtitle: Text(
+                    Formatters.truncate(
+                      query.sql.replaceAll(RegExp(r'\s+'), ' '),
+                      70,
+                    ),
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      color: PallSqlColors.textDisabled,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    _sqlController.text = query.sql;
+                    setState(() => _result = null);
+                  },
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _changeFontSize() async {
+    final AppSettings settings = ref.read(settingsProvider);
+    double value = settings.editorFontSize;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: PallSqlColors.surfaceElevated,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Editor font size - ${value.toStringAsFixed(0)} pt',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: PallSqlColors.textPrimary,
+                      ),
+                    ),
+                    Slider(
+                      value: value,
+                      min: 10,
+                      max: 24,
+                      divisions: 14,
+                      activeColor: PallSqlColors.accent,
+                      inactiveColor: PallSqlColors.surfaceMuted,
+                      onChanged: (double next) {
+                        setSheetState(() => value = next);
+                      },
+                      onChangeEnd: (double next) {
+                        ref.read(settingsProvider.notifier).update(
+                              settings.copyWith(
+                                editorFontSize: next.roundToDouble(),
+                              ),
+                            );
+                      },
+                    ),
+                    const Text(
+                      'Stored in PALLSQL/config/settings.json and shared with '
+                      'the code editor.',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: PallSqlColors.textDisabled,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Result helpers
+  // ---------------------------------------------------------------------
+
+  String _asDelimited(QueryResult result, String separator) {
+    final StringBuffer buffer = StringBuffer()
+      ..writeln(result.columns.join(separator));
+    for (final List<String?> row in result.rows) {
+      buffer.writeln(
+        row.map((String? cell) => cell ?? '').join(separator),
+      );
+    }
+    return buffer.toString();
+  }
+
+  String _asCsv(QueryResult result) {
+    String escape(String? value) {
+      final String text = value ?? '';
+      if (text.contains(',') || text.contains('"') || text.contains('\n')) {
+        return '"${text.replaceAll('"', '""')}"';
+      }
+      return text;
+    }
+
+    final StringBuffer buffer = StringBuffer()
+      ..writeln(result.columns.map(escape).join(','));
+    for (final List<String?> row in result.rows) {
+      buffer.writeln(row.map(escape).join(','));
+    }
+    return buffer.toString();
+  }
+
+  Future<void> _copyResult() async {
+    final QueryResult? result = _result;
+    if (result == null || !result.hasResultSet) {
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: _asDelimited(result, '\t')));
+    _snack('${Formatters.count(result.rowCount, 'row')} copied');
+  }
+
+  Future<void> _exportResult() async {
+    final QueryResult? result = _result;
+    if (result == null || !result.hasResultSet) {
+      return;
+    }
+    try {
+      final AppBootstrap bootstrap = ref.read(bootstrapProvider);
+      final File file =
+          await bootstrap.workspace.createTempFile('result', '.csv');
+      await file.writeAsString(_asCsv(result), flush: true);
+      final bool shared =
+          await bootstrap.native.shareFile(file.path, mimeType: 'text/csv');
+      if (!mounted) {
+        return;
+      }
+      _snack(
+        shared ? 'Exported as CSV' : 'CSV written to ${file.path}',
+      );
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _snack('Export failed: $error', error: true);
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Build
+  // ---------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -208,7 +514,6 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
     final DatabaseOverview? overview = async.valueOrNull;
     final List<DatabaseInfo> databases =
         overview?.databases ?? const <DatabaseInfo>[];
-    final List<QueryHistoryEntry> history = ref.watch(queryHistoryProvider);
     // A database can disappear between builds (deleted on the Database tab),
     // so the selection is resolved against the list that is on screen.
     String? selected;
@@ -217,6 +522,14 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
         selected = info.name;
         break;
       }
+    }
+    final String engine = SqlCompatibility.engineLabel(
+      overview?.sqlite.version ?? '',
+    );
+    final double fontSize = ref.watch(settingsProvider).editorFontSize;
+
+    if (_fullscreen) {
+      return _buildFullscreen(selected, engine, fontSize);
     }
 
     return Scaffold(
@@ -228,7 +541,9 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
           IconButton(
             tooltip: 'Query history',
             icon: const Icon(Icons.history_rounded, size: 19),
-            onPressed: history.isEmpty ? null : () => _showHistory(history),
+            onPressed: ref.watch(queryHistoryProvider).isEmpty
+                ? null
+                : () => _showHistory(ref.read(queryHistoryProvider)),
           ),
           IconButton(
             tooltip: 'Refresh databases',
@@ -240,9 +555,13 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(14, 6, 14, 28),
         children: <Widget>[
-          const PallSqlSectionHeader(
+          PallSqlSectionHeader(
             title: 'Database',
-            subtitle: 'Statements run against the selected SQLite file',
+            subtitle: engine,
+            trailing: PallSQLStatusBadge(
+              label: 'SQLite dialect',
+              icon: Icons.memory_rounded,
+            ),
           ),
           _DatabasePicker(
             databases: databases,
@@ -252,34 +571,62 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
             onCreate: _createDatabase,
           ),
           const SizedBox(height: 16),
-          const PallSqlSectionHeader(
+          PallSqlSectionHeader(
             title: 'SQL',
             subtitle: 'Separate statements with a semicolon',
+            trailing: TextButton.icon(
+              onPressed: _format,
+              icon: const Icon(Icons.format_align_left_rounded, size: 14),
+              label: const Text('Format', style: TextStyle(fontSize: 11)),
+              style: TextButton.styleFrom(
+                minimumSize: Size.zero,
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
           ),
           SizedBox(
             height: 200,
-            child: CodeEditorPanel(
+            child: PallSQLCodeEditor(
               controller: _sqlController,
               language: CodeLanguage.sql,
-              fontSize: 12.5,
-              showLineNumbers: true,
+              fontSize: fontSize,
+              showLineNumbers: ref.watch(settingsProvider).showLineNumbers,
               hintText: 'SELECT * FROM sqlite_master;',
             ),
+          ),
+          const SizedBox(height: 8),
+          _EditorToolbar(
+            onSave: _saveQuery,
+            onLoad: _loadQuery,
+            onFontSize: _changeFontSize,
+            onFullscreen: () => setState(() => _fullscreen = true),
+            fontSize: fontSize,
           ),
           const SizedBox(height: 10),
           Row(
             children: <Widget>[
               Expanded(
-                child: ServiceControlButton(
+                child: PallSQLButton(
                   label: 'Execute',
                   icon: Icons.play_arrow_rounded,
-                  filled: true,
-                  busy: _running,
+                  variant: PallSQLButtonVariant.primary,
+                  busy: _running && !_cancellable,
                   onPressed: _running ? null : _execute,
                 ),
               ),
+              if (_running && _cancellable) ...<Widget>[
+                const SizedBox(width: 8),
+                PallSQLButton(
+                  label: 'Stop',
+                  icon: Icons.stop_rounded,
+                  variant: PallSQLButtonVariant.danger,
+                  expand: false,
+                  onPressed: _stop,
+                ),
+              ],
               const SizedBox(width: 8),
-              ServiceControlButton(
+              PallSQLButton(
                 label: 'Clear',
                 icon: Icons.backspace_outlined,
                 compact: true,
@@ -290,21 +637,45 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
           ),
           if (_running) ...<Widget>[
             const SizedBox(height: 10),
-            const LinearProgressIndicator(minHeight: 2),
+            LinearProgressIndicator(
+              minHeight: 2,
+              backgroundColor: PallSqlColors.surfaceMuted,
+              valueColor:
+                  const AlwaysStoppedAnimation<Color>(PallSqlColors.accent),
+            ),
           ],
           const SizedBox(height: 14),
           PallSqlSectionHeader(
             title: 'Result',
             subtitle: _resultSummary(),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                IconButton(
+                  tooltip: 'Copy result',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.copy_all_rounded, size: 17),
+                  onPressed:
+                      (_result?.hasResultSet ?? false) ? _copyResult : null,
+                ),
+                IconButton(
+                  tooltip: 'Export CSV',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.ios_share_rounded, size: 17),
+                  onPressed:
+                      (_result?.hasResultSet ?? false) ? _exportResult : null,
+                ),
+              ],
+            ),
           ),
           _buildResult(),
           const SizedBox(height: 18),
           PallSqlSectionHeader(
             title: 'History',
-            subtitle: history.isEmpty
+            subtitle: ref.watch(queryHistoryProvider).isEmpty
                 ? 'Nothing executed yet'
-                : 'Last ${history.length} statement(s)',
-            trailing: history.isEmpty
+                : 'Last ${ref.watch(queryHistoryProvider).length} statement(s)',
+            trailing: ref.watch(queryHistoryProvider).isEmpty
                 ? null
                 : TextButton(
                     onPressed: () async {
@@ -325,7 +696,7 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
                     child: const Text('Clear', style: TextStyle(fontSize: 11)),
                   ),
           ),
-          if (history.isEmpty)
+          if (ref.watch(queryHistoryProvider).isEmpty)
             const PallSqlCard(
               child: Text(
                 'Every statement you execute is recorded here with its '
@@ -344,7 +715,8 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  for (final QueryHistoryEntry entry in history.take(10))
+                  for (final QueryHistoryEntry entry
+                      in ref.watch(queryHistoryProvider).take(10))
                     InkWell(
                       onTap: () => _useHistoryEntry(entry),
                       child: Padding(
@@ -401,6 +773,117 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
     );
   }
 
+  Widget _buildFullscreen(String? selected, String engine, double fontSize) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (!didPop) {
+          setState(() => _fullscreen = false);
+        }
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: Column(
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 6, 6, 4),
+                child: Row(
+                  children: <Widget>[
+                    PallSQLStatusBadge(
+                      label: selected ?? 'no database',
+                      color: selected == null
+                          ? PallSqlColors.warning
+                          : PallSqlColors.accent,
+                      icon: Icons.storage_rounded,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        engine,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          color: PallSqlColors.textSecondary,
+                          fontFamily: PallSqlColors.monoFontFamily,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Exit fullscreen',
+                      icon: const Icon(Icons.fullscreen_exit_rounded, size: 19),
+                      onPressed: () => setState(() => _fullscreen = false),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: PallSQLCodeEditor(
+                    controller: _sqlController,
+                    language: CodeLanguage.sql,
+                    fontSize: fontSize,
+                    showLineNumbers: true,
+                    hintText: 'SELECT * FROM sqlite_master;',
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: PallSQLButton(
+                        label: 'Execute',
+                        icon: Icons.play_arrow_rounded,
+                        variant: PallSQLButtonVariant.primary,
+                        busy: _running && !_cancellable,
+                        onPressed: _running ? null : _execute,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (_running && _cancellable)
+                      PallSQLButton(
+                        label: 'Stop',
+                        icon: Icons.stop_rounded,
+                        variant: PallSQLButtonVariant.danger,
+                        expand: false,
+                        onPressed: _stop,
+                      )
+                    else
+                      PallSQLButton(
+                        label: 'Clear',
+                        icon: Icons.backspace_outlined,
+                        compact: true,
+                        expand: false,
+                        onPressed: _running ? null : _clear,
+                      ),
+                  ],
+                ),
+              ),
+              if (_running)
+                const LinearProgressIndicator(
+                  minHeight: 2,
+                  backgroundColor: PallSqlColors.surfaceMuted,
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(PallSqlColors.accent),
+                ),
+              if (_result != null)
+                SizedBox(
+                  height: 180,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: _buildResult(),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   String _resultSummary() {
     if (_running) {
       return 'Running...';
@@ -412,20 +895,24 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
     if (result.isError) {
       return 'Failed';
     }
+    if (result.cancelled) {
+      return 'Stopped after ${result.statementsExecuted} statement(s)';
+    }
     if (result.hasResultSet) {
       return '${Formatters.count(result.rowCount, 'row')} in '
           '${Formatters.duration(result.duration)}';
     }
-    return '${result.statements} statement(s), '
-        '${Formatters.count(result.rowsAffected, 'row')} affected';
+    return '${result.statementsExecuted} statement(s), '
+        '${Formatters.count(result.rowsAffected, 'row')} affected, '
+        '${Formatters.duration(result.duration)}';
   }
 
   Widget _buildResult() {
     if (_running) {
       return const PallSqlCard(
-        child: Text(
-          'Executing...',
-          style: TextStyle(fontSize: 11.5, color: PallSqlColors.textSecondary),
+        child: PallSQLLoading(
+          message: 'Executing...',
+          compact: true,
         ),
       );
     }
@@ -441,7 +928,22 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
         ),
       );
     }
-    return QueryResultView(result: result, maxHeight: 280);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _ResultTabs(
+          index: _tab,
+          onChanged: (int index) => setState(() => _tab = index),
+          messages: result.notices.length,
+          hasError: result.isError,
+        ),
+        const SizedBox(height: 8),
+        if (_tab == 0)
+          QueryResultView(result: result, maxHeight: 280)
+        else
+          _ResultMessages(result: result),
+      ],
+    );
   }
 
   void _showHistory(List<QueryHistoryEntry> history) {
@@ -507,6 +1009,214 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
   }
 }
 
+/// Secondary editor actions (save, load, font, fullscreen).
+class _EditorToolbar extends StatelessWidget {
+  const _EditorToolbar({
+    required this.onSave,
+    required this.onLoad,
+    required this.onFontSize,
+    required this.onFullscreen,
+    required this.fontSize,
+  });
+
+  final VoidCallback onSave;
+  final VoidCallback onLoad;
+  final VoidCallback onFontSize;
+  final VoidCallback onFullscreen;
+  final double fontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: <Widget>[
+        _ToolChip(
+          icon: Icons.save_outlined,
+          label: 'Save query',
+          onTap: onSave,
+        ),
+        _ToolChip(
+          icon: Icons.folder_open_rounded,
+          label: 'Load query',
+          onTap: onLoad,
+        ),
+        _ToolChip(
+          icon: Icons.format_size_rounded,
+          label: '${fontSize.toStringAsFixed(0)} pt',
+          onTap: onFontSize,
+        ),
+        _ToolChip(
+          icon: Icons.fullscreen_rounded,
+          label: 'Fullscreen',
+          onTap: onFullscreen,
+        ),
+      ],
+    );
+  }
+}
+
+class _ToolChip extends StatelessWidget {
+  const _ToolChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: PallSqlColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: PallSqlColors.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: 13, color: PallSqlColors.textSecondary),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10.5,
+                color: PallSqlColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Result / Messages switch under the result header.
+class _ResultTabs extends StatelessWidget {
+  const _ResultTabs({
+    required this.index,
+    required this.onChanged,
+    required this.messages,
+    required this.hasError,
+  });
+
+  final int index;
+  final ValueChanged<int> onChanged;
+  final int messages;
+  final bool hasError;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        _tab('Result', 0, index == 0),
+        const SizedBox(width: 6),
+        _tab(
+          hasError ? 'Error' : 'Messages ($messages)',
+          hasError ? 0 : 1,
+          index == 1,
+        ),
+      ],
+    );
+  }
+
+  Widget _tab(String label, int value, bool active) {
+    return InkWell(
+      onTap: () => onChanged(value),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: active ? PallSqlColors.accentMuted : PallSqlColors.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: active ? PallSqlColors.accentDeep : PallSqlColors.border,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+            color:
+                active ? PallSqlColors.accentSoft : PallSqlColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Execution metadata, notices and the executed statement count.
+class _ResultMessages extends StatelessWidget {
+  const _ResultMessages({required this.result});
+
+  final QueryResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<String> rows = <String>[
+      'statements    ${result.statementsExecuted}/${result.statements}',
+      'duration      ${Formatters.duration(result.duration)}',
+      'rows affected ${result.rowsAffected}',
+      if (result.lastInsertRowId != null)
+        'last insert   ${result.lastInsertRowId}',
+      'result set    ${result.hasResultSet ? '${result.rowCount} row(s)' : 'none'}',
+    ];
+    return PallSqlCard(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          for (final String row in rows)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: Text(
+                row,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontFamily: PallSqlColors.monoFontFamily,
+                  color: PallSqlColors.textSecondary,
+                ),
+              ),
+            ),
+          if (result.notices.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 8),
+            const Text(
+              'NOTICES',
+              style: TextStyle(
+                fontSize: 9.5,
+                letterSpacing: 1.4,
+                fontWeight: FontWeight.w700,
+                color: PallSqlColors.textDisabled,
+              ),
+            ),
+            const SizedBox(height: 4),
+            for (final String notice in result.notices)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Text(
+                  notice,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: PallSqlColors.textPrimary,
+                  ),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// Database chooser plus the "New database" shortcut.
 class _DatabasePicker extends StatelessWidget {
   const _DatabasePicker({
@@ -536,10 +1246,10 @@ class _DatabasePicker extends StatelessWidget {
               message: 'Create a SQLite database to run SQL offline. The file '
                   'lives in PALLSQL/database and survives restarts.',
             ),
-            ServiceControlButton(
+            PallSQLButton(
               label: 'New database',
               icon: Icons.add_rounded,
-              filled: true,
+              variant: PallSQLButtonVariant.primary,
               busy: busy,
               onPressed: onCreate,
             ),

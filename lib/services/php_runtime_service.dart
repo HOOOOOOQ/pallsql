@@ -530,4 +530,71 @@ class PhpRuntimeService implements PhpBridge {
     }
     return runtime.execute(request);
   }
+
+  /// Runs a tiny real script through the active bridge.
+  ///
+  /// With no runtime installed this returns the same honest 501 the web server
+  /// returns, so the PHP page can show *why* it fails instead of pretending.
+  Future<PhpSelfTest> selfTest() async {
+    final File script = File(p.join(_workspace.tmp.path, 'php-selftest.php'));
+    await script.parent.create(recursive: true);
+    await script.writeAsString(
+      '<?php\n'
+      'header("Content-Type: text/plain; charset=utf-8");\n'
+      'echo "PALLSQL-PHP-OK " . PHP_VERSION;\n',
+      flush: true,
+    );
+    final PhpCgiResponse response = await execute(
+      PhpCgiRequest(
+        scriptPath: script.path,
+        scriptName: '/php-selftest.php',
+        documentRoot: _workspace.tmp.path,
+        method: 'GET',
+        uri: Uri.parse('http://127.0.0.1/php-selftest.php'),
+        headers: const <String, String>{'Accept': 'text/plain'},
+        body: const <int>[],
+        remoteAddress: '127.0.0.1',
+        serverName: '127.0.0.1',
+        serverPort: 8080,
+      ),
+    );
+    final String body = utf8.decode(response.body, allowMalformed: true).trim();
+    _logs.info(
+      LogSource.php,
+      'PHP self test: HTTP ${response.statusCode} '
+      '(${body.isEmpty ? 'empty body' : 'body received'})',
+    );
+    return PhpSelfTest(
+      statusCode: response.statusCode,
+      body: body,
+      stderr: response.stderr.trim(),
+      ok: response.statusCode == 200 && body.contains('PALLSQL-PHP-OK'),
+    );
+  }
+}
+
+/// Result of the PHP page's "Test execution" button.
+class PhpSelfTest {
+  const PhpSelfTest({
+    required this.statusCode,
+    required this.body,
+    required this.stderr,
+    required this.ok,
+  });
+
+  final int statusCode;
+  final String body;
+  final String stderr;
+  final bool ok;
+
+  String get summary {
+    if (ok) {
+      return 'PHP executed the test script (HTTP $statusCode)';
+    }
+    if (statusCode == 501) {
+      return 'No PHP runtime: the server answered HTTP 501 exactly like a '
+          '.php request would.';
+    }
+    return 'PHP answered HTTP $statusCode without the expected output.';
+  }
 }

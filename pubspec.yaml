@@ -1,7 +1,7 @@
 name: pallsql
 description: "PALLSQL - offline mobile web development environment for Android."
 publish_to: none
-version: 0.1.2+3
+version: 0.2.0+4
 
 environment:
   sdk: ">=3.6.0 <4.0.0"

@@ -11,6 +11,7 @@ import '../models/database_models.dart';
 import '../models/log_entry.dart';
 import '../services/database_engine.dart';
 import '../services/log_sink.dart';
+import '../services/sql_compatibility.dart';
 
 /// SQLite implementation of [DatabaseEngine].
 ///
@@ -37,6 +38,7 @@ class SqliteDatabaseRepository implements DatabaseEngine {
   final int maxHistory;
 
   final Map<String, Database> _open = <String, Database>{};
+  final Map<String, String> _versions = <String, String>{};
   final List<QueryHistoryEntry> _history = <QueryHistoryEntry>[];
   bool _disposed = false;
 
@@ -272,11 +274,16 @@ class SqliteDatabaseRepository implements DatabaseEngine {
   ///
   /// [allowDestructive] must be confirmed by the UI (PALLSQL asks before
   /// running DROP/TRUNCATE or a DELETE/UPDATE without WHERE).
+  ///
+  /// MySQL-style metadata statements (`SHOW DATABASES`, `DESCRIBE`, ...) are
+  /// answered by [SqlCompatibility] from real SQLite metadata instead of being
+  /// sent to SQLite, which would fail with a syntax error.
   Future<QueryResult> execute(
     String database,
     String sql, {
     bool allowDestructive = true,
     bool recordHistory = true,
+    SqlCancelToken? cancel,
   }) async {
     final Stopwatch stopwatch = Stopwatch()..start();
     final List<SqlStatement> statements = SqlUtils.splitStatements(sql);
@@ -299,16 +306,38 @@ class SqliteDatabaseRepository implements DatabaseEngine {
     }
 
     final Database db = await _existingDatabase(database);
+    final String engineVersion = await _sqliteVersion(db, database);
     final List<String> notices = <String>[];
     List<String> columns = <String>[];
     List<List<String?>> rows = <List<String?>>[];
     int rowsAffected = 0;
     int? lastInsertRowId;
     String? error;
+    bool cancelled = false;
+    int executed = 0;
 
     for (final SqlStatement statement in statements) {
+      if (cancel != null && cancel.isCancelled) {
+        cancelled = true;
+        notices.add('Stopped by the user after $executed statement(s)');
+        break;
+      }
       try {
-        if (statement.returnsRows) {
+        final SqlCompatibilityCommand? compat =
+            SqlCompatibility.parse(statement.sql);
+        if (compat != null) {
+          final _CompatOutcome outcome =
+              await _compatibility(db, database, compat, engineVersion);
+          if (outcome.error != null) {
+            error = outcome.error;
+            break;
+          }
+          if (outcome.columns.isNotEmpty) {
+            columns = outcome.columns;
+            rows = outcome.rows;
+          }
+          notices.addAll(outcome.notices);
+        } else if (statement.returnsRows) {
           final List<Map<String, Object?>> result =
               await db.rawQuery(statement.sql);
           columns = _columnsOf(result, statement.sql);
@@ -320,7 +349,8 @@ class SqliteDatabaseRepository implements DatabaseEngine {
         } else if (statement.kind == SqlStatementKind.mutation) {
           final int affected = await db.rawUpdate(statement.sql);
           rowsAffected += affected;
-          if (statement.keyword == 'INSERT' || statement.keyword == 'REPLACE') {
+          if (statement.keyword == 'INSERT' ||
+              statement.keyword == 'REPLACE') {
             final List<Map<String, Object?>> idRows =
                 await db.rawQuery('SELECT last_insert_rowid() AS id');
             final Object? id = idRows.isEmpty ? null : idRows.first['id'];
@@ -333,6 +363,7 @@ class SqliteDatabaseRepository implements DatabaseEngine {
           await db.execute(statement.sql);
           notices.add('${statement.keyword}: ok');
         }
+        executed++;
       } on Object catch (exception) {
         error = _cleanMessage(exception);
         _logs.error(LogSource.database, 'SQL failed on $database: $error');
@@ -351,6 +382,8 @@ class SqliteDatabaseRepository implements DatabaseEngine {
       lastInsertRowId: lastInsertRowId,
       notices: notices,
       error: error,
+      cancelled: cancelled,
+      statementsExecuted: executed,
     );
     if (recordHistory) {
       await _recordHistory(
@@ -366,11 +399,250 @@ class SqliteDatabaseRepository implements DatabaseEngine {
     if (error == null) {
       _logs.debug(
         LogSource.database,
-        'Executed ${statements.length} statement(s) on $database in '
+        'Executed $executed statement(s) on $database in '
         '${stopwatch.elapsedMilliseconds} ms',
       );
     }
     return result;
+  }
+
+  /// Real engine version, cached per database file.
+  Future<String> _sqliteVersion(Database db, String database) async {
+    final String? cached = _versions[database];
+    if (cached != null) {
+      return cached;
+    }
+    try {
+      final List<Map<String, Object?>> rows =
+          await db.rawQuery('SELECT sqlite_version() AS v');
+      final String version =
+          rows.isEmpty ? '' : (rows.first['v']?.toString() ?? '');
+      _versions[database] = version;
+      return version;
+    } on Object {
+      return '';
+    }
+  }
+
+  Future<Database?> _openIfExists(String name) async {
+    try {
+      return await _existingDatabase(name);
+    } on Object {
+      return null;
+    }
+  }
+
+  /// Answers a MySQL-style metadata statement from real SQLite metadata.
+  Future<_CompatOutcome> _compatibility(
+    Database db,
+    String database,
+    SqlCompatibilityCommand command,
+    String engineVersion,
+  ) async {
+    switch (command.kind) {
+      case SqlCompatibilityKind.unsupported:
+        {
+          final String message = SqlCompatibility.unsupportedMessage(
+            statement: command.original,
+            engineVersion: engineVersion,
+            token: command.token,
+          );
+          final String? alternative = SqlCompatibility.alternativeFor(command);
+          return _CompatOutcome(
+            error: alternative == null ? message : '$message\n\n$alternative',
+          );
+        }
+      case SqlCompatibilityKind.showDatabases:
+        {
+          final List<DatabaseInfo> files = await listDatabases();
+          return _CompatOutcome(
+            columns: const <String>['Database'],
+            rows: files
+                .map((DatabaseInfo info) => <String?>[info.name])
+                .toList(growable: false),
+            notices: <String>[
+              '${files.length} database file(s) found in PALLSQL/database',
+            ],
+          );
+        }
+      case SqlCompatibilityKind.showTables:
+        {
+          final String target = command.database ?? database;
+          final Database? source =
+              target == database ? db : await _openIfExists(target);
+          if (source == null) {
+            return _CompatOutcome(error: 'Unknown database: $target');
+          }
+          final List<Map<String, Object?>> objects = await source.rawQuery(
+            "SELECT name FROM sqlite_master WHERE type IN ('table', 'view') "
+            "AND name NOT LIKE 'sqlite_%' ORDER BY type, name",
+          );
+          return _CompatOutcome(
+            columns: <String>['Tables_in_$target'],
+            rows: objects
+                .map((Map<String, Object?> row) => <String?>[
+                      row['name']?.toString(),
+                    ])
+                .toList(growable: false),
+            notices: <String>[
+              '${objects.length} object(s) read from sqlite_master of $target',
+            ],
+          );
+        }
+      case SqlCompatibilityKind.describeTable:
+      case SqlCompatibilityKind.showColumns:
+        {
+          final String? missingTable = command.table;
+          if (missingTable == null || missingTable.isEmpty) {
+            return const _CompatOutcome(
+              error: 'Missing table name. Usage: DESCRIBE <table>;',
+            );
+          }
+          final List<Map<String, Object?>> tableInfo = await db.rawQuery(
+            'PRAGMA table_info(${Validators.quoteSqlIdentifier(missingTable)})',
+          );
+          if (tableInfo.isEmpty) {
+            return _CompatOutcome(
+              error: "Table '$missingTable' does not exist in $database",
+            );
+          }
+          final List<List<String?>> described = tableInfo.map(
+            (Map<String, Object?> row) {
+              final bool primaryKey = ((row['pk'] as num?)?.toInt() ?? 0) > 0;
+              final bool notNull =
+                  ((row['notnull'] as num?)?.toInt() ?? 0) == 1;
+              return <String?>[
+                row['name']?.toString() ?? '',
+                row['type']?.toString() ?? '',
+                notNull ? 'NO' : 'YES',
+                primaryKey ? 'PRI' : '',
+                row['dflt_value']?.toString(),
+                primaryKey ? 'PRIMARY KEY' : '',
+              ];
+            },
+          ).toList(growable: false);
+          return _CompatOutcome(
+            columns: const <String>[
+              'Field',
+              'Type',
+              'Null',
+              'Key',
+              'Default',
+              'Extra',
+            ],
+            rows: described,
+            notices: <String>[
+              'Translated from PRAGMA table_info by the compatibility layer',
+            ],
+          );
+        }
+      case SqlCompatibilityKind.showCreateTable:
+        {
+          final String? createTable = command.table;
+          if (createTable == null || createTable.isEmpty) {
+            return const _CompatOutcome(
+              error: 'Missing table name. Usage: SHOW CREATE TABLE <table>;',
+            );
+          }
+          final List<Map<String, Object?>> found = await db.rawQuery(
+            "SELECT name, sql FROM sqlite_master WHERE name = ? "
+            "AND type IN ('table', 'view') LIMIT 1",
+            <Object?>[createTable],
+          );
+          if (found.isEmpty) {
+            return _CompatOutcome(
+              error: "Table '$createTable' does not exist in $database",
+            );
+          }
+          final String definition = found.first['sql']?.toString() ?? '';
+          return _CompatOutcome(
+            columns: const <String>['Table', 'Create Table'],
+            rows: <List<String?>>[
+              <String?>[
+                createTable,
+                definition.isEmpty ? '' : '$definition;',
+              ],
+            ],
+            notices: <String>[
+              'Definition read from sqlite_master (the real stored DDL)',
+            ],
+          );
+        }
+      case SqlCompatibilityKind.showIndexes:
+        {
+          final String? indexedTable = command.table;
+          if (indexedTable == null || indexedTable.isEmpty) {
+            return const _CompatOutcome(
+              error: 'Missing table name. Usage: SHOW INDEX FROM <table>;',
+            );
+          }
+          final List<Map<String, Object?>> indexList = await db.rawQuery(
+            'PRAGMA index_list(${Validators.quoteSqlIdentifier(indexedTable)})',
+          );
+          final List<List<String?>> indexRows = <List<String?>>[];
+          for (final Map<String, Object?> index in indexList) {
+            final String indexName = index['name']?.toString() ?? '';
+            final bool unique = ((index['unique'] as num?)?.toInt() ?? 0) == 1;
+            final List<Map<String, Object?>> indexColumns = await db.rawQuery(
+              'PRAGMA index_info(${Validators.quoteSqlIdentifier(indexName)})',
+            );
+            if (indexColumns.isEmpty) {
+              indexRows.add(
+                <String?>[indexedTable, unique ? '0' : '1', indexName, ''],
+              );
+              continue;
+            }
+            for (final Map<String, Object?> column in indexColumns) {
+              indexRows.add(<String?>[
+                indexedTable,
+                unique ? '0' : '1',
+                indexName,
+                column['name']?.toString() ?? '',
+              ]);
+            }
+          }
+          return _CompatOutcome(
+            columns: const <String>[
+              'Table',
+              'Non_unique',
+              'Key_name',
+              'Column_name',
+            ],
+            rows: indexRows,
+            notices: <String>[
+              '${indexList.length} index(es) read from PRAGMA index_list',
+            ],
+          );
+        }
+      case SqlCompatibilityKind.selectVersion:
+        {
+          final List<Map<String, Object?>> versionRows =
+              await db.rawQuery('SELECT sqlite_version() AS v');
+          final String version = versionRows.isEmpty
+              ? engineVersion
+              : (versionRows.first['v']?.toString() ?? engineVersion);
+          return _CompatOutcome(
+            columns: const <String>['VERSION()'],
+            rows: <List<String?>>[
+              <String?>[version],
+            ],
+            notices: <String>[
+              'That is the SQLite engine version. PALLSQL runs the SQLite '
+                  'dialect - it is not MySQL or MariaDB.',
+            ],
+          );
+        }
+      case SqlCompatibilityKind.selectDatabase:
+        return _CompatOutcome(
+          columns: const <String>['DATABASE()'],
+          rows: <List<String?>>[
+            <String?>[database],
+          ],
+          notices: <String>[
+            'The selected file is PALLSQL/database/$database.db',
+          ],
+        );
+    }
   }
 
   /// Runs a script inside a transaction (used by SQL import).
@@ -798,4 +1070,19 @@ class SqliteDatabaseRepository implements DatabaseEngine {
   }
 
   bool get isDisposed => _disposed;
+}
+
+/// Outcome of a MySQL-compatibility statement.
+class _CompatOutcome {
+  const _CompatOutcome({
+    this.columns = const <String>[],
+    this.rows = const <List<String?>>[],
+    this.notices = const <String>[],
+    this.error,
+  });
+
+  final List<String> columns;
+  final List<List<String?>> rows;
+  final List<String> notices;
+  final String? error;
 }

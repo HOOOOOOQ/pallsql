@@ -13,6 +13,7 @@ import '../../services/php_runtime_service.dart';
 import '../../services/web_server_service.dart';
 import '../../widgets/pallsql_app_bar.dart';
 import '../../widgets/pallsql_card.dart';
+import '../../widgets/pallsql_components.dart';
 import '../../widgets/pallsql_dialogs.dart';
 import '../../widgets/server_status_card.dart';
 import '../../widgets/service_control_button.dart';
@@ -123,6 +124,33 @@ class _PhpPageState extends ConsumerState<PhpPage> {
     showPallSqlSnack(messenger, message, error: failed);
   }
 
+  /// Runs a real script through the active bridge (501 when no runtime).
+  Future<void> _runSelfTest() async {
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      final PhpSelfTest result = await ref.read(bootstrapProvider).php.selfTest();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _busy = false);
+      await PallSQLDialog.info(
+        context: context,
+        title: 'PHP execution test',
+        message: '${result.summary}\n\n'
+            'HTTP ${result.statusCode}\n'
+            '${result.body.isEmpty ? '(empty body)' : result.body}'
+            '${result.stderr.isEmpty ? '' : '\n\nstderr:\n${result.stderr}'}',
+      );
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _busy = false);
+      showPallSqlSnack(messenger, 'Test failed: $error', error: true);
+    }
+  }
+
   void _openLogs() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -192,6 +220,12 @@ class _PhpPageState extends ConsumerState<PhpPage> {
                 icon: Icons.play_circle_outline_rounded,
                 busy: _busy,
                 onPressed: _verifyEndpoint,
+              ),
+              ServiceControlButton(
+                label: 'Test execution',
+                icon: Icons.science_outlined,
+                busy: _busy,
+                onPressed: _runSelfTest,
               ),
             ],
           ),

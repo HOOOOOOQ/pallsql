@@ -5,16 +5,20 @@ import '../../core/constants/app_info.dart';
 import '../../core/theme/pallsql_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../models/app_settings.dart';
+import '../../models/backup_info.dart';
 import '../../providers/app_providers.dart';
 import '../../services/app_bootstrap.dart';
 import '../../services/native_bridge.dart';
 import '../../widgets/pallsql_app_bar.dart';
 import '../../widgets/pallsql_card.dart';
+import '../../widgets/pallsql_components.dart';
 import '../../widgets/pallsql_dialogs.dart';
+import '../about/about_page.dart';
 import '../backups/backups_page.dart';
+import '../files/files_page.dart';
 import '../php/php_page.dart';
 
-/// Settings tab: editor, server, storage and about.
+/// Settings tab: appearance, editor, server, storage, workspace and about.
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
@@ -23,6 +27,8 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
+  bool _exporting = false;
+
   Future<void> _update(AppSettings next, {String? success}) async {
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
     final String? error =
@@ -37,12 +43,60 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
+  void _openFolder(String path, String title) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) =>
+            FilesPage(initialPath: path, titleOverride: title),
+      ),
+    );
+  }
+
+  /// Writes a full workspace ZIP into `backups` and offers it through Android's
+  /// share sheet. Nothing leaves the device unless the user picks a target.
+  Future<void> _exportWorkspace() async {
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    setState(() => _exporting = true);
+    final AppBootstrap bootstrap = ref.read(bootstrapProvider);
+    try {
+      final BackupInfo backup = await bootstrap.backups.create(
+        includeProjects: true,
+        includeWebRoot: true,
+        includeDatabases: true,
+        includeConfig: true,
+        includeLogs: true,
+      );
+      final bool shared = await bootstrap.native.shareFile(
+        backup.path,
+        mimeType: 'application/zip',
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() => _exporting = false);
+      showPallSqlSnack(
+        messenger,
+        shared
+            ? 'Workspace exported: ${backup.fileName}'
+            : 'Workspace ZIP written to ${backup.path}',
+      );
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _exporting = false);
+      showPallSqlSnack(messenger, 'Export failed: $error', error: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppSettings settings = ref.watch(settingsProvider);
     final AsyncValue<StorageReport> storage = ref.watch(storageReportProvider);
     final NativeDeviceInfo? device = ref.watch(deviceInfoProvider);
     final DatabaseOverview? database = ref.watch(databaseProvider).valueOrNull;
+    final String workspacePath =
+        ref.watch(bootstrapProvider).workspace.rootPath;
 
     return Scaffold(
       appBar: PallSQLAppBar(
@@ -59,6 +113,80 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(14, 6, 14, 24),
         children: <Widget>[
+          const PallSqlSectionHeader(
+            title: 'Appearance',
+            subtitle: 'PALLSQL keeps dark surfaces with a soft green accent',
+          ),
+          PallSqlCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    const Expanded(
+                      child: Text(
+                        'Theme',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: PallSqlColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    for (final AppThemeMode mode in AppThemeMode.values)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: _Choice(
+                          label: mode.label,
+                          selected: settings.themeMode == mode,
+                          onTap: () => _update(
+                            settings.copyWith(themeMode: mode),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: <Widget>[
+                    const Expanded(
+                      child: Text(
+                        'Text size',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: PallSqlColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${(settings.uiTextScale * 100).round()}%',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: PallSqlColors.accent,
+                        fontFamily: PallSqlColors.monoFontFamily,
+                      ),
+                    ),
+                  ],
+                ),
+                Slider(
+                  value: settings.uiTextScale,
+                  min: 0.85,
+                  max: 1.3,
+                  divisions: 9,
+                  activeColor: PallSqlColors.accent,
+                  inactiveColor: PallSqlColors.surfaceMuted,
+                  onChanged: (double value) {
+                    ref.read(settingsProvider.notifier).update(
+                          settings.copyWith(
+                            uiTextScale:
+                                (value * 20).roundToDouble() / 20,
+                          ),
+                        );
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           const PallSqlSectionHeader(title: 'Editor'),
           PallSqlCard(
             child: Column(
@@ -175,6 +303,96 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
           ),
           const SizedBox(height: 16),
+          const PallSqlSectionHeader(
+            title: 'Workspace',
+            subtitle: 'One folder shared by files, server, database and terminal',
+          ),
+          PallSqlCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                  'Location',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: PallSqlColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                SelectableText(
+                  workspacePath,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    height: 1.4,
+                    color: PallSqlColors.textPrimary,
+                    fontFamily: PallSqlColors.monoFontFamily,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: <Widget>[
+                    PallSQLButton(
+                      label: 'Open workspace',
+                      icon: Icons.folder_open_rounded,
+                      compact: true,
+                      expand: false,
+                      onPressed: () => _openFolder('', 'Workspace'),
+                    ),
+                    PallSQLButton(
+                      label: 'Open htdocs',
+                      icon: Icons.public_rounded,
+                      compact: true,
+                      expand: false,
+                      onPressed: () => _openFolder('htdocs', 'htdocs'),
+                    ),
+                    PallSQLButton(
+                      label: 'Open projects',
+                      icon: Icons.workspaces_outline,
+                      compact: true,
+                      expand: false,
+                      onPressed: () => _openFolder('projects', 'Projects'),
+                    ),
+                    PallSQLButton(
+                      label: 'Open database folder',
+                      icon: Icons.storage_rounded,
+                      compact: true,
+                      expand: false,
+                      onPressed: () => _openFolder('database', 'Database'),
+                    ),
+                    PallSQLButton(
+                      label: 'Open logs',
+                      icon: Icons.receipt_long_rounded,
+                      compact: true,
+                      expand: false,
+                      onPressed: () => _openFolder('logs', 'Logs'),
+                    ),
+                    PallSQLButton(
+                      label: 'Export workspace',
+                      icon: Icons.archive_rounded,
+                      compact: true,
+                      expand: false,
+                      busy: _exporting,
+                      onPressed: _exporting ? null : _exportWorkspace,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'The workspace is private app storage, so other apps cannot '
+                  'read it. Use Export workspace (ZIP) to move files out, or '
+                  'share a single file from the File Manager.',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    height: 1.45,
+                    color: PallSqlColors.textDisabled,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           const PallSqlSectionHeader(title: 'Logs and storage'),
           PallSqlCard(
             child: Column(
@@ -265,6 +483,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   monospace: true,
                 ),
                 PallSqlKeyValue(
+                  label: 'Dialect',
+                  value: 'SQLite dialect (not MySQL/MariaDB)',
+                  monospace: true,
+                ),
+                PallSqlKeyValue(
                   label: 'MariaDB',
                   value: database?.mariadb.available == true
                       ? 'available'
@@ -301,6 +524,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   monospace: true,
                 ),
                 const PallSqlKeyValue(
+                  label: 'Developer',
+                  value: AppInfo.developer,
+                  monospace: true,
+                ),
+                const PallSqlKeyValue(
                   label: 'Package',
                   value: AppInfo.packageName,
                   monospace: true,
@@ -320,28 +548,71 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   monospace: true,
                   maxLines: 2,
                 ),
-                PallSqlKeyValue(
-                  label: 'Workspace',
-                  value: ref.watch(bootstrapProvider).workspace.rootPath,
-                  monospace: true,
-                  maxLines: 2,
-                ),
                 const SizedBox(height: 8),
+                _SettingAction(
+                  icon: Icons.info_outline_rounded,
+                  label: 'About PALLSQL, developer and licenses',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (BuildContext context) => const AboutPage(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
                 const Text(
-                  'PALLSQL is an offline development environment for Android. '
-                  'It runs a real HTTP server and a real SQLite engine inside the '
-                  'app sandbox. PHP requires a runtime you install; MariaDB is '
-                  'not bundled.',
+                  AppInfo.copyright,
+                  textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 11,
-                    height: 1.45,
-                    color: PallSqlColors.textSecondary,
+                    fontSize: 10.5,
+                    color: PallSqlColors.textDisabled,
                   ),
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _Choice extends StatelessWidget {
+  const _Choice({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected
+              ? PallSqlColors.accentMuted
+              : PallSqlColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected ? PallSqlColors.accentDeep : PallSqlColors.border,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: selected
+                ? PallSqlColors.accentSoft
+                : PallSqlColors.textSecondary,
+          ),
+        ),
       ),
     );
   }

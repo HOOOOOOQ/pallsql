@@ -18,6 +18,7 @@ import '../../widgets/pallsql_dialogs.dart';
 import '../../widgets/server_status_card.dart';
 import '../../widgets/service_control_button.dart';
 import '../../widgets/status_dot.dart';
+import '../about/about_page.dart';
 import '../backups/backups_page.dart';
 import '../database/database_page.dart';
 import '../logs/logs_page.dart';
@@ -327,6 +328,16 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   label: 'Logs',
                   onTap: () => _push(const LogsPage()),
                 ),
+                _QuickAction(
+                  icon: Icons.terminal_rounded,
+                  label: 'SQL console',
+                  onTap: () => _push(const TerminalPage(openSqlConsole: true)),
+                ),
+                _QuickAction(
+                  icon: Icons.info_outline_rounded,
+                  label: 'About',
+                  onTap: () => _push(const AboutPage()),
+                ),
               ],
             ),
             const SizedBox(height: 20),
@@ -399,6 +410,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           ),
                       ],
                     ),
+            ),
+            const SizedBox(height: 22),
+            Center(
+              child: Text(
+                AppInfo.copyright,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: PallSqlColors.textDisabled,
+                  letterSpacing: 0.3,
+                ),
+              ),
             ),
           ],
         ),
