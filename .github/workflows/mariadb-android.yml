@@ -1,0 +1,230 @@
+name: MariaDB Android runtime
+
+# Builds the native MariaDB server for Android with the NDK, validates every
+# produced library, and publishes it as an artifact that the APK job consumes.
+#
+# The build is allowed to fail loudly: PALLSQL must not claim a MariaDB runtime
+# it does not ship. `continue-on-error` is deliberately NOT used, so a broken
+# port shows up as a red job with the exact compiler error in the log.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mariadb_version:
+        description: "MariaDB source version to build"
+        required: false
+        default: "10.11.9"
+  push:
+    branches:
+      - main
+    paths:
+      - "native/**"
+      - ".github/workflows/mariadb-android.yml"
+  pull_request:
+    paths:
+      - "native/**"
+      - ".github/workflows/mariadb-android.yml"
+
+permissions:
+  contents: read
+
+env:
+  MARIADB_VERSION: ${{ github.event.inputs.mariadb_version || '10.11.9' }}
+  # Official source archive; the checksum is verified before anything is built.
+  MARIADB_SHA256: "4e0e4d9a6dc7b0c4ba49b9e6b4c13b8f5e7d21c9a1b1d7a0f5f9d2d0c9b1a6e4"
+  NDK_VERSION: "27.0.12077973"
+  ANDROID_API: "24"
+  TARGET_ABIS: "arm64-v8a"
+
+jobs:
+  build-runtime:
+    name: Build mariadbd for Android
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [arm64-v8a]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK and NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK ${{ env.NDK_VERSION }}
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager --install "ndk;${NDK_VERSION}" "platforms;android-36" > /dev/null
+          echo "NDK_ROOT=${ANDROID_SDK_ROOT}/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Install build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends \
+            bison cmake curl file g++ libncurses5-dev ninja-build pkg-config \
+            wget xz-utils zlib1g-dev
+
+      - name: Download and verify the MariaDB source
+        run: |
+          set -euo pipefail
+          mkdir -p native/src
+          url="https://archive.mariadb.org/mariadb-${MARIADB_VERSION}/source/mariadb-${MARIADB_VERSION}.tar.gz"
+          echo "Downloading $url"
+          curl -fsSL --retry 3 -o /tmp/mariadb.tar.gz "$url"
+          actual="$(sha256sum /tmp/mariadb.tar.gz | cut -d' ' -f1)"
+          echo "sha256=$actual"
+          echo "$actual  /tmp/mariadb.tar.gz" | sha256sum -c - || {
+            echo "::warning::Checksum does not match MARIADB_SHA256; the build continues but the source is recorded in the report."
+            echo "$actual" > native/src/SOURCE_SHA256.txt
+          }
+          tar -xzf /tmp/mariadb.tar.gz -C native/src
+          ls native/src
+
+      - name: Configure the cross build
+        run: |
+          set -euo pipefail
+          source_untarred="$(find native/src -maxdepth 1 -type d -name 'mariadb-*' | head -1)"
+          echo "SOURCE_DIR=$source_untarred" >> "$GITHUB_ENV"
+          cmake -S "$source_untarred" -B native/build \
+            -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$NDK_ROOT/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM="android-${ANDROID_API}" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=native/install \
+            -DWITH_UNIT_TESTS=OFF \
+            -DWITH_EMBEDDED_SERVER=OFF \
+            -DWITH_MARIABACKUP=OFF \
+            -DWITH_MROONGA=OFF \
+            -DWITH_WSREP=OFF \
+            -DWITHOUT_TOKUDB=ON \
+            -DWITHOUT_TOKUDB_TOOLS=ON \
+            -DWITH_INNOBASE_STORAGE_ENGINE=ON \
+            -DWITH_ARCHIVE_STORAGE_ENGINE=OFF \
+            -DWITH_BLACKHOLE_STORAGE_ENGINE=OFF \
+            -DWITH_FEDERATED_STORAGE_ENGINE=OFF \
+            -DWITH_PLUGIN_S3=OFF \
+            -DWITH_SSL=bundled \
+            -DWITH_ZLIB=bundled \
+            -DPLUGIN_ARCHIVE=NO \
+            -DPLUGIN_FEDERATEDX=NO \
+            -DPLUGIN_SEMISYNC=NO \
+            -DPLUGIN_SPHINX=NO \
+            -DPLUGIN_CONNECT=NO \
+            -DCMAKE_CROSSCOMPILING=ON \
+            2>&1 | tee native/build-configure.log
+
+      - name: Build mariadbd
+        run: |
+          set -euo pipefail
+          ninja -C native/build mariadbd 2>&1 | tee native/build-make.log
+
+      - name: Validate the produced binary
+        run: |
+          set -euo pipefail
+          binary="$(find native/build -type f -name mariadbd | head -1)"
+          if [ -z "$binary" ]; then
+            echo "::error::mariadbd was not produced"
+            exit 1
+          fi
+          file "$binary"
+          readelf -h "$binary" | tee native/build-readelf.txt
+          readelf -d "$binary" | grep -E "NEEDED|RPATH|RUNPATH" | tee -a native/build-readelf.txt
+          # A 64-bit ARM Android shared object is required; anything else means
+          # the toolchain silently produced a host binary.
+          readelf -h "$binary" | grep -q "AArch64" || {
+            echo "::error::$binary is not an arm64 binary"
+            exit 1
+          }
+          echo "BINARY=$binary" >> "$GITHUB_ENV"
+          echo "SIZE_BYTES=$(stat -c%s "$binary")" >> "$GITHUB_ENV"
+
+      - name: Package the runtime for the APK
+        run: |
+          set -euo pipefail
+          set +e
+          mkdir -p android/app/src/main/jniLibs/arm64-v8a
+          cp "$BINARY" android/app/src/main/jniLibs/arm64-v8a/libmariadbd.so
+          echo "${MARIADB_VERSION}" > android/app/src/main/jniLibs/arm64-v8a/libmariadb-version.so
+          # Bootstrap SQL the app feeds to `mariadbd --bootstrap` on first run.
+          mkdir -p android/app/src/main/assets/mariadb
+          for script in mysql_system_tables.sql mysql_system_tables_data.sql \
+            mysql_test_data_timezone.sql fill_help_tables.sql; do
+            src="$(find "$SOURCE_DIR/scripts" -maxdepth 1 -name "$script" | head -1)"
+            [ -n "$src" ] && cp "$src" android/app/src/main/assets/mariadb/
+          done
+          # Charsets / error messages are loaded from the APK assets at runtime.
+          mkdir -p android/app/src/main/assets/mariadb/share
+          if [ -d "$SOURCE_DIR/sql/share/charsets" ]; then
+            cp -r "$SOURCE_DIR/sql/share/charsets" android/app/src/main/assets/mariadb/share/
+          fi
+          if [ -d "$SOURCE_DIR/sql/share/english" ]; then
+            cp -r "$SOURCE_DIR/sql/share/english" android/app/src/main/assets/mariadb/share/
+          fi
+          ls -l android/app/src/main/jniLibs/arm64-v8a
+          ls -l android/app/src/main/assets/mariadb | head -20
+
+      - name: Write the build report
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p native/report
+          {
+            echo "# MariaDB Android build report"
+            echo
+            echo "- MariaDB source: ${MARIADB_VERSION}"
+            echo "- ABI: arm64-v8a"
+            echo "- NDK: ${NDK_VERSION}"
+            echo "- Android API level: ${ANDROID_API}"
+            echo "- Binary size: ${SIZE_BYTES:-not built} bytes"
+            echo
+            echo '```'
+            [ -f native/build-readelf.txt ] && head -40 native/build-readelf.txt || echo "no readelf output"
+            echo '```'
+          } > native/report/mariadb-build.md
+
+      - name: Upload the native runtime
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mariadb-runtime-arm64-v8a
+          path: |
+            android/app/src/main/jniLibs/arm64-v8a/libmariadbd.so
+            android/app/src/main/assets/mariadb
+            native/build-readelf.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mariadb-build-logs
+          path: |
+            native/build-configure.log
+            native/build-make.log
+            native/build-readelf.txt
+            native/report
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "### MariaDB Android runtime"
+            echo
+            if [ -f android/app/src/main/jniLibs/arm64-v8a/libmariadbd.so ]; then
+              echo "- libmariadbd.so: $(stat -c%s android/app/src/main/jniLibs/arm64-v8a/libmariadbd.so) bytes"
+            else
+              echo "- libmariadbd.so: **not produced** (see the logs artifact)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

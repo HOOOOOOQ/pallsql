@@ -1312,7 +1312,7 @@ class _DatabasePicker extends StatelessWidget {
                 child: Text(
                   selected == null
                       ? 'No database selected'
-                      : 'Running against $selected.db',
+                      : 'Running against $selected',
                   style: const TextStyle(
                     fontSize: 11,
                     color: PallSqlColors.textSecondary,

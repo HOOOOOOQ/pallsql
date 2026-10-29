@@ -249,6 +249,35 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # The native MariaDB runtime is built by `mariadb-android.yml`. When it is
+      # available as an artifact it is unpacked here so the APK really contains
+      # libmariadbd.so; without it the app reports MariaDB as "Not installed"
+      # instead of pretending the server exists.
+      - name: Unpack the native MariaDB runtime when available
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: mariadb-android.yml
+          name: mariadb-runtime-arm64-v8a
+          path: native-runtime
+          if_no_artifact_found: ignore
+
+      - name: Stage the native runtime into the APK
+        run: |
+          set -euo pipefail
+          if [ -f native-runtime/libmariadbd.so ]; then
+            mkdir -p android/app/src/main/jniLibs/arm64-v8a
+            cp native-runtime/libmariadbd.so android/app/src/main/jniLibs/arm64-v8a/
+            echo "libmariadbd.so staged: $(stat -c%s native-runtime/libmariadbd.so) bytes"
+          else
+            echo "::warning title=MariaDB runtime missing::No libmariadbd.so artifact was found. The APK will report MariaDB as 'Not installed'. Run the 'MariaDB Android runtime' workflow first."
+          fi
+          if [ -d native-runtime/mariadb ]; then
+            mkdir -p android/app/src/main/assets
+            cp -r native-runtime/mariadb android/app/src/main/assets/
+          fi
+          find android/app/src/main/jniLibs -name '*.so' -exec file {} \; || true
+
       - name: Restore Gradle wrapper when missing
         run: |
           set -euo pipefail

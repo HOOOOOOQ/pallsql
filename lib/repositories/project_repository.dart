@@ -510,37 +510,39 @@ header('Content-Type: text/html; charset=utf-8');
 
   static const String _databaseSample = '''
 <?php
-// Requires a PHP runtime with the pdo_sqlite extension.
+// Requires a PHP runtime built with pdo_mysql (or mysqli) and a running
+// MariaDB server. PALLSQL starts the server; the PHP runtime is separate.
 header('Content-Type: text/html; charset=utf-8');
-\$database = __DIR__ . '/../../database/app.db';
+\$host = '127.0.0.1';
+\$port = 3306;
+\$user = 'root';
+\$password = '';
+\$database = 'app';
 try {
-    \$pdo = new PDO('sqlite:' . \$database);
-    \$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    \$pdo->exec('CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY AUTOINCREMENT, body TEXT NOT NULL, created_at TEXT NOT NULL)');
-    \$pdo->prepare('INSERT INTO notes (body, created_at) VALUES (?, ?)')
-        ->execute(['Created by the PALLSQL sample', date('c')]);
-    \$rows = \$pdo->query('SELECT id, body, created_at FROM notes ORDER BY id DESC LIMIT 10')->fetchAll(PDO::FETCH_ASSOC);
-    echo '<h1 style="color:#9bcb91">SQLite rows</h1><ul>';
+    \$pdo = new PDO(
+        sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', \$host, \$port, \$database),
+        \$user,
+        \$password,
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+    \$pdo->exec('CREATE TABLE IF NOT EXISTS notes ('
+        . 'id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, '
+        . 'body VARCHAR(255) NOT NULL, '
+        . 'created_at DATETIME NOT NULL'
+        . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+    \$pdo->prepare('INSERT INTO notes (body, created_at) VALUES (?, NOW())')
+        ->execute(['Created by the PALLSQL sample']);
+    \$rows = \$pdo->query('SELECT id, body, created_at FROM notes ORDER BY id DESC LIMIT 10')
+        ->fetchAll(PDO::FETCH_ASSOC);
+    echo '<h1 style="color:#9bcb91">MariaDB rows</h1><ul>';
     foreach (\$rows as \$row) {
-        echo '<li>#' . htmlspecialchars((string)\$row['id']) . ' ' . htmlspecialchars(\$row['body']) . '</li>';
+        echo '<li>#' . htmlspecialchars((string) \$row['id']) . ' '
+            . htmlspecialchars((string) \$row['body']) . '</li>';
     }
     echo '</ul>';
 } catch (Throwable \$error) {
     http_response_code(500);
     echo '<p>Database error: ' . htmlspecialchars(\$error->getMessage()) . '</p>';
 }
-''';
-
-  static const String _databaseSampleReadme = '''
-# Database sample
-
-PALLSQL ships with SQLite as its offline database engine.
-
-This sample uses PHP's `pdo_sqlite` extension to write to
-`PALLSQL/database/app.db`. Create that database in the **Database** tab first
-(or let the script create the table) and install a PHP runtime to execute it.
-
-MariaDB is **not** bundled with this build; see `docs/database.md` in the
-repository for the evaluation notes.
 ''';
 }

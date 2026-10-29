@@ -805,6 +805,47 @@ class AppTerminalApi implements TerminalApi {
       ref.read(databaseRepositoryProvider).availability();
 
   @override
+  MariaDbStatus get mariaDbStatus => ref.read(mariadbServiceProvider).snapshot();
+
+  @override
+  Future<String> startMariaDb() async {
+    final MariaDBServiceManager manager = ref.read(mariadbServiceProvider);
+    final bool ok = await manager.start();
+    await ref.read(databaseProvider.notifier).refresh();
+    final MariaDbStatus status = manager.snapshot();
+    return ok ? '${status.message}' : 'MariaDB did not start: ${status.message}';
+  }
+
+  @override
+  Future<String> stopMariaDb() async {
+    final MariaDBServiceManager manager = ref.read(mariadbServiceProvider);
+    final bool ok = await manager.stop();
+    await ref.read(databaseProvider.notifier).refresh();
+    return ok ? 'MariaDB stopped' : 'MariaDB could not be stopped';
+  }
+
+  @override
+  Future<String> restartMariaDb() async {
+    final MariaDBServiceManager manager = ref.read(mariadbServiceProvider);
+    final bool ok = await manager.restart();
+    await ref.read(databaseProvider.notifier).refresh();
+    return ok ? manager.snapshot().message : 'MariaDB restart failed';
+  }
+
+  @override
+  Future<String> initializeMariaDb() async {
+    final MariaDBServiceManager manager = ref.read(mariadbServiceProvider);
+    final bool ok = await manager.initialize();
+    return ok
+        ? 'Data directory ready at ${manager.dataDirectory}'
+        : manager.snapshot().message;
+  }
+
+  @override
+  Future<String> mariaDbLogTail() =>
+      ref.read(mariadbServiceProvider).readErrorLogTail(30);
+
+  @override
   Future<List<Project>> projects() =>
       ref.read(projectRepositoryProvider).load();
 

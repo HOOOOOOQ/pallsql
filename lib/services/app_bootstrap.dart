@@ -287,6 +287,7 @@ class AppBootstrap {
   Future<void> dispose() async {
     await webServer.dispose();
     await databases.dispose();
+    await mariadb.dispose();
     await native.dispose();
     await logs.dispose();
   }
