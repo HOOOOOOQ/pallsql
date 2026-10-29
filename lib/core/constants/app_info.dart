@@ -4,8 +4,8 @@ class AppInfo {
 
   static const String appName = 'PALLSQL';
   static const String packageName = 'com.pallsql.mobile';
-  static const String version = '0.1.1';
-  static const String buildNumber = '1';
+  static const String version = '0.1.2';
+  static const String buildNumber = '3';
   static const String tagline = 'Offline mobile web development environment';
   static const String description =
       'PALLSQL - Offline mobile web development environment built with '

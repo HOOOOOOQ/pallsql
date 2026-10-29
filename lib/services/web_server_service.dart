@@ -107,6 +107,10 @@ class WebServerService {
 
   static const int maxRequestBytes = 8 * 1024 * 1024;
 
+  /// Files up to this size are read into memory so the response body and the
+  /// declared `Content-Length` are guaranteed to be the same bytes.
+  static const int maxBufferedFileBytes = 8 * 1024 * 1024;
+
   final LogSink _logs;
   final String _serverName;
   String _documentRoot;
@@ -120,6 +124,8 @@ class WebServerService {
   String? _error;
   bool _stopRequested = false;
   bool _lanAccess = false;
+  Future<WebServerSnapshot>? _starting;
+  bool _phpUnavailableLogged = false;
   String? _bindAddress;
   List<String> _urls = const <String>[];
   final StreamController<WebServerSnapshot> _controller =
@@ -157,13 +163,43 @@ class WebServerService {
 
   /// Starts the server. Throws [PortInUseFailure] when the port is taken and
   /// [NotFoundFailure] when the document root does not exist.
+  ///
+  /// Only ever one instance exists: a second call while `starting` or
+  /// `running` returns the same future instead of binding a second socket.
   Future<WebServerSnapshot> start({
     required int port,
     required bool lanAccess,
-  }) async {
-    if (_state == ServiceState.running || _state == ServiceState.starting) {
-      return snapshot;
+  }) {
+    final Future<WebServerSnapshot>? pending = _starting;
+    if (pending != null) {
+      return pending;
     }
+    if (_state == ServiceState.running) {
+      return Future<WebServerSnapshot>.value(snapshot);
+    }
+    final Future<WebServerSnapshot> future =
+        _start(port: port, lanAccess: lanAccess);
+    _starting = future;
+    // Handle both completion paths here: a bare `whenComplete` would rethrow
+    // a bind failure as an uncaught async error for the caller that awaits
+    // [future] via `expectLater` / try-catch.
+    future.then<void>(
+      (_) => _clearStarting(future),
+      onError: (Object error, StackTrace stackTrace) => _clearStarting(future),
+    );
+    return future;
+  }
+
+  void _clearStarting(Future<WebServerSnapshot> future) {
+    if (identical(_starting, future)) {
+      _starting = null;
+    }
+  }
+
+  Future<WebServerSnapshot> _start({
+    required int port,
+    required bool lanAccess,
+  }) async {
     if (port < 0 || port > 65535) {
       throw const ValidationFailure('Port must be between 0 and 65535');
     }
@@ -182,8 +218,17 @@ class WebServerService {
     try {
       final HttpServer server =
           await HttpServer.bind(address, port, shared: false);
-      server.autoCompress = true;
+      // Responses are written with an explicit Content-Length (see
+      // [_serveFile]); enabling gzip on top of that only rewrites the body of
+      // streamed files, so compression stays off to keep the byte count honest.
+      server.autoCompress = false;
       server.defaultResponseHeaders.clear();
+      if (_stopRequested) {
+        // stop() arrived while the socket was being bound.
+        await server.close(force: true);
+        _setState(ServiceState.stopped, clearError: true);
+        return snapshot;
+      }
       _server = server;
       _bindAddress = address.address;
       _startedAt = DateTime.now();
@@ -252,11 +297,19 @@ class WebServerService {
   }
 
   Future<WebServerSnapshot> stop() async {
+    _stopRequested = true;
+    final Future<WebServerSnapshot>? pending = _starting;
+    if (pending != null) {
+      try {
+        await pending;
+      } on Object {
+        // A failed start leaves nothing to close.
+      }
+    }
     if (_server == null) {
       _setState(ServiceState.stopped, clearError: true);
       return snapshot;
     }
-    _stopRequested = true;
     _setState(ServiceState.stopping);
     final StreamSubscription<HttpRequest>? subscription = _subscription;
     _subscription = null;
@@ -456,23 +509,27 @@ class WebServerService {
     if (type == FileSystemEntityType.directory) {
       final String? index = await _findIndex(resolved);
       if (index == null) {
+        // The landing page of the site is missing: answer with a real 404 and
+        // an explanation instead of an empty success response.
+        final bool isRoot = requestPath.isEmpty;
+        _logs.warning(
+          LogSource.webServer,
+          isRoot
+              ? 'No index.html in the document root'
+              : 'Directory listing is disabled: ${request.uri.path}',
+        );
         return _respond(
           request,
-          HttpStatus.forbidden,
-          'text/plain; charset=utf-8',
-          utf8.encode('Directory listing is disabled\n'),
+          isRoot ? HttpStatus.notFound : HttpStatus.forbidden,
+          'text/html; charset=utf-8',
+          utf8.encode(_missingIndexPage(isRoot: isRoot)),
         );
       }
       resolved = index;
       type = FileSystemEntityType.file;
     }
     if (type != FileSystemEntityType.file) {
-      return _respond(
-        request,
-        HttpStatus.notFound,
-        'text/plain; charset=utf-8',
-        utf8.encode('Not found\n'),
-      );
+      return _notFound(request);
     }
     if (!_isInsideRoot(resolved)) {
       _logs.warning(
@@ -558,6 +615,19 @@ class WebServerService {
     }
   }
 
+  /// Serves a static file.
+  ///
+  /// The bytes are read *before* the response headers are written, so
+  /// `Content-Length` always matches the payload. A read that fails produces a
+  /// real 500 instead of a "200 OK" with no body — the latter is what makes a
+  /// browser render a blank page.
+  ///
+  /// Caching rules:
+  /// * HTML documents are sent with `Cache-Control: no-store` and no validators,
+  ///   so editing a page and reloading always shows the new bytes;
+  /// * every other asset gets a strong `ETag` (content hash), `Last-Modified`
+  ///   and `Cache-Control: no-cache`, and answers `304` only when the request
+  ///   validators actually match the current file.
   Future<int> _serveFile(
     HttpRequest request,
     File file,
@@ -565,43 +635,239 @@ class WebServerService {
   ) async {
     final FileStat stat = await file.stat();
     if (stat.type != FileSystemEntityType.file) {
-      return _respond(
-        request,
-        HttpStatus.notFound,
-        'text/plain; charset=utf-8',
-        utf8.encode('Not found\n'),
-      );
+      return _notFound(request);
     }
+    final String contentType = MimeTypes.forFileName(file.path);
+    final bool isDocument = MimeTypes.isHtml(contentType);
+    final bool buffered = stat.size <= maxBufferedFileBytes;
+
+    List<int>? bytes;
+    if (buffered) {
+      try {
+        bytes = await file.readAsBytes();
+      } on FileSystemException catch (error) {
+        _logs.error(
+          LogSource.webServer,
+          'Could not read ${p.basename(file.path)}: ${error.message}',
+        );
+        return _respond(
+          request,
+          HttpStatus.internalServerError,
+          'text/plain; charset=utf-8',
+          utf8.encode('The requested file could not be read\n'),
+        );
+      }
+    }
+
+    final Map<String, String> headers = <String, String>{
+      'Content-Type': contentType,
+      'X-Content-Type-Options': 'nosniff',
+    };
+    if (isDocument) {
+      headers['Cache-Control'] = 'no-store';
+    } else {
+      headers['Cache-Control'] = 'no-cache';
+      final String etag =
+          bytes == null ? _statEtag(stat) : _contentEtag(bytes, stat);
+      headers['ETag'] = etag;
+      headers['Last-Modified'] = HttpDate.format(stat.modified);
+      if (_matchesEtag(request, etag) ||
+          _notModifiedSince(request, stat.modified)) {
+        return _writeResponse(
+          request,
+          HttpStatus.notModified,
+          headers,
+          const <int>[],
+        );
+      }
+    }
+
+    if (bytes != null) {
+      return _writeResponse(request, HttpStatus.ok, headers, bytes);
+    }
+    return _streamFile(request, file, method, stat, headers);
+  }
+
+  /// Streams a file that is too large to buffer (media, archives).
+  Future<int> _streamFile(
+    HttpRequest request,
+    File file,
+    String method,
+    FileStat stat,
+    Map<String, String> headers,
+  ) async {
     final HttpResponse response = request.response;
-    final String etag =
-        'W/"${stat.size}-${stat.modified.millisecondsSinceEpoch}"';
-    response.headers
-      ..set('Content-Type', MimeTypes.forFileName(file.path))
-      ..set('X-Content-Type-Options', 'nosniff')
-      ..set('ETag', etag)
-      ..set('Last-Modified', HttpDate.format(stat.modified))
-      ..set('Cache-Control', 'no-cache');
-    final String? ifNoneMatch = request.headers.value('if-none-match');
-    if (ifNoneMatch != null && ifNoneMatch == etag) {
-      response.statusCode = HttpStatus.notModified;
-      await response.close();
-      return response.statusCode;
-    }
-    response.contentLength = stat.size;
     response.statusCode = HttpStatus.ok;
+    headers.forEach(response.headers.set);
+    response.contentLength = stat.size;
     if (method == 'HEAD') {
       await response.close();
-      return response.statusCode;
+      return HttpStatus.ok;
     }
     try {
       await response.addStream(file.openRead());
       await response.close();
-    } on FileSystemException {
-      response.statusCode = HttpStatus.internalServerError;
-      await response.close();
+    } on Object catch (error) {
+      // The headers are already on the wire; the only safe move is to drop the
+      // connection so the browser does not accept a truncated file.
+      _logs.error(
+        LogSource.webServer,
+        'Streaming ${p.basename(file.path)} failed: $error',
+      );
+      try {
+        await response.close();
+      } on Object {
+        // The socket is gone.
+      }
     }
-    return response.statusCode;
+    return HttpStatus.ok;
   }
+
+  /// Writes a fully buffered response with an exact length.
+  Future<int> _writeResponse(
+    HttpRequest request,
+    int status,
+    Map<String, String> headers,
+    List<int> body,
+  ) async {
+    final HttpResponse response = request.response;
+    response.statusCode = status;
+    headers.forEach(response.headers.set);
+    if (status == HttpStatus.notModified) {
+      // 304 carries no body and no length.
+      await response.close();
+      return status;
+    }
+    response.contentLength = body.length;
+    if (request.method.toUpperCase() != 'HEAD' && body.isNotEmpty) {
+      response.add(body);
+    }
+    await response.close();
+    return status;
+  }
+
+  /// A strong validator derived from the bytes we are about to send.
+  ///
+  /// FNV-1a over 32 bits keeps the arithmetic inside the safe integer range on
+  /// every Dart runtime, and the modification time is part of the tag so an
+  /// in-place edit always invalidates it.
+  String _contentEtag(List<int> bytes, FileStat stat) {
+    int hash = 0x811c9dc5;
+    for (final int byte in bytes) {
+      hash ^= byte;
+      hash = (hash * 0x01000193) & 0xFFFFFFFF;
+    }
+    return '"${hash.toRadixString(16)}-${bytes.length}-'
+        '${stat.modified.toUtc().millisecondsSinceEpoch}"';
+  }
+
+  /// Fallback validator for files that are streamed instead of hashed.
+  String _statEtag(FileStat stat) =>
+      '"${stat.size}-${stat.modified.toUtc().millisecondsSinceEpoch}"';
+
+  /// RFC 9110 weak comparison of `If-None-Match`.
+  bool _matchesEtag(HttpRequest request, String etag) {
+    final String? header = request.headers.value(HttpHeaders.ifNoneMatchHeader);
+    if (header == null || header.trim().isEmpty) {
+      return false;
+    }
+    final String target = _normalizeEtag(etag);
+    for (final String candidate in header.split(',')) {
+      final String value = candidate.trim();
+      if (value == '*') {
+        return true;
+      }
+      if (_normalizeEtag(value) == target) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  String _normalizeEtag(String value) {
+    String tag = value.trim();
+    if (tag.startsWith('W/')) {
+      tag = tag.substring(2);
+    }
+    return tag;
+  }
+
+  /// Evaluates `If-Modified-Since`, which only applies when the request did not
+  /// send `If-None-Match`.
+  bool _notModifiedSince(HttpRequest request, DateTime modified) {
+    if (request.headers.value(HttpHeaders.ifNoneMatchHeader) != null) {
+      return false;
+    }
+    final String? raw =
+        request.headers.value(HttpHeaders.ifModifiedSinceHeader);
+    if (raw == null || raw.trim().isEmpty) {
+      return false;
+    }
+    final DateTime? since = _tryParseHttpDate(raw);
+    if (since == null) {
+      return false;
+    }
+    // `Last-Modified` has second precision.
+    final DateTime lastModified = _truncateToSeconds(modified);
+    return !lastModified.isAfter(since);
+  }
+
+  DateTime? _tryParseHttpDate(String value) {
+    try {
+      return _truncateToSeconds(HttpDate.parse(value));
+    } on Object {
+      return null;
+    }
+  }
+
+  DateTime _truncateToSeconds(DateTime value) {
+    final DateTime utc = value.toUtc();
+    return DateTime.utc(
+      utc.year,
+      utc.month,
+      utc.day,
+      utc.hour,
+      utc.minute,
+      utc.second,
+    );
+  }
+
+  Future<int> _notFound(HttpRequest request) => _respond(
+        request,
+        HttpStatus.notFound,
+        'text/plain; charset=utf-8',
+        utf8.encode('Not found: ${request.uri.path}\n'),
+      );
+
+  String _missingIndexPage({required bool isRoot}) {
+    final String heading =
+        isRoot ? 'No index.html yet' : 'Directory listing is disabled';
+    final String detail = isRoot
+        ? 'The document root <code>${_htmlEscape(_documentRoot)}</code> does '
+            'not contain an <code>index.html</code>. Create one from the Files '
+            'tab and reload this page.'
+        : 'PALLSQL never lists directory contents. Request a file instead, or '
+            'add an <code>index.html</code> to this folder.';
+    return '''
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PALLSQL local server</title>
+<style>
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#050706;
+color:#f1f7f2;font:16px/1.5 system-ui,sans-serif}
+main{max-width:32rem;padding:2rem}
+h1{color:#9bff3d;font-size:1.3rem;letter-spacing:.04em}
+code{color:#9bff3d} p{color:#93a197}
+</style></head>
+<body><main><h1>$heading</h1><p>$detail</p></main></body></html>
+''';
+  }
+
+  String _htmlEscape(String value) => value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;');
 
   Future<int> _servePhp(
     HttpRequest request,
@@ -610,6 +876,14 @@ class WebServerService {
   ) async {
     final PhpRuntimeInfo info = _phpBridge.info;
     if (!info.available) {
+      if (!_phpUnavailableLogged) {
+        _phpUnavailableLogged = true;
+        _logs.warning(
+          LogSource.php,
+          'PHP runtime is not available: ${info.reason ?? 'no runtime found'}. '
+          'PHP requests answer HTTP 501 while static files keep working.',
+        );
+      }
       final String message = '''
 <!doctype html>
 <html><head><meta charset="utf-8"><title>PHP runtime not installed</title></head>

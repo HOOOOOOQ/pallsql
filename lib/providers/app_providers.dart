@@ -392,6 +392,38 @@ final AsyncNotifierProvider<DatabaseNotifier, DatabaseOverview>
   DatabaseNotifier.new,
 );
 
+/// Reactive view of the SQL editor history.
+///
+/// The repository owns the data (it persists `config/query_history.json`), the
+/// notifier only mirrors it into the widget tree and tells the UI when to
+/// rebuild after a statement ran somewhere else.
+class QueryHistoryNotifier extends Notifier<List<QueryHistoryEntry>> {
+  @override
+  List<QueryHistoryEntry> build() => _current(watch: true);
+
+  void refresh() {
+    state = _current(watch: false);
+  }
+
+  List<QueryHistoryEntry> _current({required bool watch}) {
+    final SqliteDatabaseRepository repository = watch
+        ? ref.watch(databaseRepositoryProvider)
+        : ref.read(databaseRepositoryProvider);
+    return List<QueryHistoryEntry>.from(repository.history);
+  }
+
+  Future<void> clear() async {
+    await ref.read(databaseRepositoryProvider).clearHistory();
+    refresh();
+  }
+}
+
+final NotifierProvider<QueryHistoryNotifier, List<QueryHistoryEntry>>
+    queryHistoryProvider =
+    NotifierProvider<QueryHistoryNotifier, List<QueryHistoryEntry>>(
+  QueryHistoryNotifier.new,
+);
+
 final Provider<ServiceStatus> databaseStatusProvider = Provider<ServiceStatus>(
   (Ref ref) {
     final AsyncValue<DatabaseOverview> value = ref.watch(databaseProvider);

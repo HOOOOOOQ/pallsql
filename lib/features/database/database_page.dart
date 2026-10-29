@@ -17,6 +17,7 @@ import '../../widgets/pallsql_dialogs.dart';
 import '../../widgets/service_control_button.dart';
 import '../logs/logs_page.dart';
 import 'database_detail_page.dart';
+import 'sql_editor_page.dart';
 
 /// Database tab: engine status, database files and query history.
 class DatabasePage extends ConsumerStatefulWidget {
@@ -113,12 +114,34 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
     );
   }
 
+  /// First database of the overview, used as the editor default.
+  DatabaseInfo? _defaultDatabase() {
+    final List<DatabaseInfo> databases =
+        ref.read(databaseProvider).valueOrNull?.databases ??
+            const <DatabaseInfo>[];
+    return databases.isEmpty ? null : databases.first;
+  }
+
+  /// Opens the SQL editor, preselecting [database] when there is one.
+  Future<void> _openSqlEditor([DatabaseInfo? database]) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => SqlEditorPage(
+          initialDatabase: (database ?? _defaultDatabase())?.name,
+        ),
+      ),
+    );
+    // Statements run in the editor change table counts and history.
+    if (mounted) {
+      await ref.read(databaseProvider.notifier).refresh();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final AsyncValue<DatabaseOverview> async = ref.watch(databaseProvider);
     final DatabaseOverview? overview = async.valueOrNull;
-    final List<QueryHistoryEntry> history =
-        ref.watch(databaseRepositoryProvider).history;
+    final List<QueryHistoryEntry> history = ref.watch(queryHistoryProvider);
 
     return Scaffold(
       appBar: PallSQLAppBar(
@@ -134,6 +157,11 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
                     const LogsPage(initialSource: LogSource.database),
               ),
             ),
+          ),
+          IconButton(
+            tooltip: 'SQL editor',
+            icon: const Icon(Icons.terminal_rounded, size: 19),
+            onPressed: _openSqlEditor,
           ),
           IconButton(
             tooltip: 'Refresh',
@@ -219,13 +247,10 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
                       onPressed: () async {
                         final ScaffoldMessengerState messenger =
                             ScaffoldMessenger.of(context);
-                        await ref
-                            .read(databaseRepositoryProvider)
-                            .clearHistory();
+                        await ref.read(queryHistoryProvider.notifier).clear();
                         if (!mounted) {
                           return;
                         }
-                        setState(() {});
                         showPallSqlSnack(messenger, 'History cleared');
                       },
                       style: TextButton.styleFrom(
@@ -331,9 +356,7 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
               label: 'Open SQL editor',
               icon: Icons.terminal_rounded,
               filled: true,
-              onPressed: overview == null || overview.databases.isEmpty
-                  ? null
-                  : () => _openDatabase(overview.databases.first),
+              onPressed: _openSqlEditor,
             ),
           ],
         ),

@@ -99,6 +99,60 @@ void main() {
     expect(columns.first.primaryKey, isTrue);
   });
 
+  test('runs the documented users flow and keeps the data on disk', () async {
+    await repository.createDatabase('pallsql');
+
+    final QueryResult created = await repository.execute(
+      'pallsql',
+      'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL);',
+    );
+    expect(created.error, isNull);
+
+    final QueryResult inserted = await repository.execute(
+      'pallsql',
+      "INSERT INTO users (name) VALUES ('PALLSQL');",
+    );
+    expect(inserted.error, isNull);
+    expect(inserted.rowsAffected, 1);
+
+    final QueryResult selected =
+        await repository.execute('pallsql', 'SELECT * FROM users;');
+    expect(selected.isError, isFalse);
+    expect(selected.columns, <String>['id', 'name']);
+    expect(selected.rowCount, 1);
+    expect(selected.rows.single, <String?>['1', 'PALLSQL']);
+    expect(selected.rows.single.last, 'PALLSQL');
+
+    // Close every connection and read the file again with a new repository:
+    // the row must survive, because it lives in the .db file itself.
+    await repository.dispose();
+    final SqliteDatabaseRepository reopened = SqliteDatabaseRepository(
+      directory: directory,
+      factory: databaseFactoryFfi,
+      logs: const NullLogSink(),
+    );
+    addTearDown(reopened.dispose);
+    final QueryResult afterReopen =
+        await reopened.execute('pallsql', 'SELECT name FROM users;');
+    expect(afterReopen.rows.single.single, 'PALLSQL');
+
+    final File file = File('${directory.path}/pallsql.db');
+    expect(await file.exists(), isTrue);
+    expect(await file.length(), greaterThan(0));
+  });
+
+  test('counts the database files that really exist', () async {
+    await repository.createDatabase('one');
+    await repository.createDatabase('two');
+    expect(await repository.listDatabases(), hasLength(2));
+
+    // Deleting the file behind the app's back must change the count: the UI
+    // number is never hardcoded or cached from a previous session.
+    await File('${directory.path}/two.db').delete();
+    final List<DatabaseInfo> databases = await repository.listDatabases();
+    expect(databases.map((DatabaseInfo info) => info.name), <String>['one']);
+  });
+
   test('surfaces SQL errors without crashing', () async {
     await repository.createDatabase('app');
     final QueryResult result =
