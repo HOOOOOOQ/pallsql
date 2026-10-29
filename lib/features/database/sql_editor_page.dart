@@ -222,7 +222,7 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
     return Scaffold(
       appBar: PallSQLAppBar(
         title: 'SQL editor',
-        subtitle: selected == null ? 'No database selected' : selected,
+        subtitle: selected ?? 'No database selected',
         showBack: true,
         actions: <Widget>[
           IconButton(
