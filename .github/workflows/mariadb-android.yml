@@ -84,8 +84,8 @@ jobs:
           set -euo pipefail
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends \
-            bison cmake curl file g++ libncurses5-dev ninja-build pkg-config \
-            wget xz-utils zlib1g-dev
+            bison cmake curl file g++ libgnutls28-dev libncurses5-dev \
+            ninja-build pkg-config wget xz-utils zlib1g-dev
 
       - name: Download and verify the MariaDB source
         run: |
@@ -109,31 +109,60 @@ jobs:
           echo "SOURCE_DIR=$PWD/$(find native/src -maxdepth 1 -type d -name 'mariadb-*' | head -1)" >> "$GITHUB_ENV"
 
       # The ncurses/readline probe is unconditional in CMakeLists.txt, while
-      # `mariadbd` never links readline and the NDK ships no curses for the
-      # target ABI. The extracted source is patched (never the server code) and
-      # the patch is recorded in the build report.
-      - name: Patch the unportable ncurses/readline probe
+      # Two platform probes in the extracted source cannot work for a cross
+      # build: the unconditional ncurses probe (`mariadbd` never links readline
+      # and the NDK ships no curses) and Connector/C's GnuTLS default. Both
+      # patches are applied here, recorded in the build report, and never touch
+      # the server code itself.
+      - name: Patch the unportable platform probes
         run: |
           set -euo pipefail
-          python3 - "$SOURCE_DIR/CMakeLists.txt" <<'PY'
+          python3 - "$SOURCE_DIR" <<'PY'
           import pathlib
           import sys
 
-          path = pathlib.Path(sys.argv[1])
-          text = path.read_text()
-          old = "MYSQL_CHECK_READLINE()"
-          if text.count(old) != 1:
-              raise SystemExit("the readline call site changed in the MariaDB sources")
-          path.write_text(
-              text.replace(
-                  old,
-                  "# PALLSQL Android port: no ncurses in the NDK, mariadbd does not\n"
-                  "# link readline, so the probe is skipped for this build.\n"
-                  "IF(NOT ANDROID)\n  MYSQL_CHECK_READLINE()\nENDIF()",
-              )
+          root = pathlib.Path(sys.argv[1])
+
+
+          def patch(relative, old, new, expected=1):
+              path = root / relative
+              text = path.read_text()
+              if text.count(old) != expected:
+                  raise SystemExit(
+                      f"{relative}: expected {expected} occurrence(s) of {old!r}"
+                  )
+              path.write_text(text.replace(old, new))
+              print(f"patched {relative}")
+
+
+          # 1. mariadbd never links readline and the NDK ships no ncurses for
+          #    the target ABI, so the unconditional curses probe is skipped.
+          patch(
+              "CMakeLists.txt",
+              "MYSQL_CHECK_READLINE()",
+              "# PALLSQL Android port: no ncurses in the NDK, mariadbd does not\n"
+              "# link readline, so the probe is skipped for this build.\n"
+              "IF(NOT ANDROID)\n  MYSQL_CHECK_READLINE()\nENDIF()",
+          )
+
+          # 2. With the bundled wolfSSL the Connector/C TLS backend is forced to
+          #    GnuTLS on every non-Windows system ("that's what debian wants").
+          #    PALLSQL ships no Connector/C and talks to the server itself over
+          #    loopback, so the Android build configures the client library
+          #    without a TLS backend instead of pulling a host GnuTLS into a
+          #    cross build.
+          patch(
+              "cmake/mariadb_connector_c.cmake",
+              '    SET(CONC_WITH_SSL "GNUTLS") # that\'s what debian wants, right?',
+              "    IF(ANDROID)\n"
+              '      SET(CONC_WITH_SSL "OFF")\n'
+              "    ELSE()\n"
+              '      SET(CONC_WITH_SSL "GNUTLS")\n'
+              "    ENDIF()",
           )
           PY
           grep -n -A2 "IF(NOT ANDROID)" "$SOURCE_DIR/CMakeLists.txt"
+          grep -n -A4 'CONC_WITH_SSL "OFF"' "$SOURCE_DIR/cmake/mariadb_connector_c.cmake"
 
       # Cross compiling MariaDB needs a handful of host tools (comp_err,
       # uca-dump, gen_lex_hash, gen_lex_token ...). They are built once natively

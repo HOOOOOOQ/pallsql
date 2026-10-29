@@ -123,7 +123,7 @@ class _MariaDbConfigPageState extends ConsumerState<MariaDbConfigPage> {
       return;
     }
     final MariaDBServiceManager manager = ref.read(mariadbServiceProvider);
-    final bool wasRunning = manager.isRunning;
+    final bool wasRunning = manager.snapshot().isRunning;
     if (wasRunning && restart) {
       final bool confirmed = await showConfirmDialog(
         context: context,
@@ -285,7 +285,7 @@ class _MariaDbConfigPageState extends ConsumerState<MariaDbConfigPage> {
                         icon: Icons.stop_rounded,
                         variant: PallSQLButtonVariant.secondary,
                         expand: false,
-                        onPressed: _busy || !manager.isRunning
+                        onPressed: _busy || !manager.snapshot().isRunning
                             ? null
                             : () => _lifecycle(() => manager.stop(), 'Stop'),
                       ),
@@ -294,7 +294,7 @@ class _MariaDbConfigPageState extends ConsumerState<MariaDbConfigPage> {
                         icon: Icons.refresh_rounded,
                         variant: PallSQLButtonVariant.secondary,
                         expand: false,
-                        onPressed: _busy || !manager.isRunning
+                        onPressed: _busy || !manager.snapshot().isRunning
                             ? null
                             : () => _lifecycle(() => manager.restart(), 'Restart'),
                       ),

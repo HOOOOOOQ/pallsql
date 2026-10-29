@@ -57,7 +57,7 @@ class _LegacyDataCardState extends ConsumerState<LegacyDataCard> {
   }
 
   Future<void> _migrate(LegacyDatabase legacy) async {
-    if (!ref.read(mariadbServiceProvider).isRunning) {
+    if (!ref.read(mariadbServiceProvider).snapshot().isRunning) {
       showPallSqlSnack(
         ScaffoldMessenger.of(context),
         'Start MariaDB first: the legacy data is copied into a real schema.',
