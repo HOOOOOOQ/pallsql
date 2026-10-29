@@ -28,6 +28,7 @@ jobs:
     # requests that come from this repository.
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -88,28 +89,46 @@ jobs:
           echo "Collected $(wc -l < /tmp/changed.txt) formatted file(s)."
           cat /tmp/changed.txt
 
-      # Commits the canonical formatting back to the branch instead of asking a
-      # human to reproduce `dart format` by hand. Pushes made with GITHUB_TOKEN
-      # do not start another run, so the next push validates the result.
-      - name: Apply and push formatting
+      # Commits the canonical formatting back to the branch. If the token
+      # cannot push, the exact patch is published as a PR comment so it can be
+      # applied with `git apply` instead of being reproduced by hand.
+      - name: Repair formatting
         if: >-
           failure() &&
           github.event_name == 'pull_request' &&
           github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euo pipefail
-          [ -f /tmp/changed.txt ] || exit 0
+          set -uo pipefail
           [ -s /tmp/changed.txt ] || exit 0
-          dart format .
+          git diff > /tmp/format.diff
+          if [ ! -s /tmp/format.diff ]; then
+            echo "The formatter wrote no changes."
+            exit 0
+          fi
           git config user.name "pallsql-format-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          if git diff --cached --quiet; then
-            echo "Nothing to commit."
+          git commit -m "style: apply dart format (automated)" > /dev/null || true
+          if git push origin "HEAD:${GITHUB_HEAD_REF}"; then
+            echo "Pushed the formatted commit to ${GITHUB_HEAD_REF}."
             exit 0
           fi
-          git commit -m "style: apply dart format (automated)"
-          git push origin "HEAD:${GITHUB_HEAD_REF}"
+          echo "Push was rejected; publishing the patch instead."
+          {
+            echo 'Formatter patch (apply with git apply):'
+            echo '```diff'
+            cat /tmp/format.diff
+            echo '```'
+          } > /tmp/comment.md
+          jq -Rs '{body: .}' /tmp/comment.md | curl -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/issues/${{ github.event.pull_request.number }}/comments" \
+            --data @- > /dev/null
+          echo "Patch published on the pull request."
 
       - name: Upload formatter output
         if: failure()
