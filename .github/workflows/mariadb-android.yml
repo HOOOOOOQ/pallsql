@@ -192,16 +192,25 @@ jobs:
           test -f native/build-host/import_executables.cmake
           echo "HOST_IMPORT_EXECUTABLES=$PWD/native/build-host/import_executables.cmake" >> "$GITHUB_ENV"
 
-      # bionic does not pull <ctype.h> into every translation unit the way
-      # glibc does, so legacy C files (`mysys/get_password.c` uses isspace() and
-      # iscntrl()) fail with "call to undeclared library function". Force
-      # including the header is a compile time fix; no server code is edited.
+      # bionic does not pull the POSIX/ctype headers into every translation
+      # unit the way glibc does, so legacy C files (`mysys/get_password.c`,
+      # `mysys/mf_pack.c`) fail with "call to undeclared function".
       - name: Prepare the Android compile flags
         run: |
           set -euo pipefail
+          # bionic is stricter than glibc: several legacy MariaDB C files use
+          # POSIX/ctype functions without including the header that declares
+          # them, which newer clang rejects in C99 mode. Force including the
+          # standard headers is a compile time only fix and keeps the server
+          # source untouched.
           cat > native/android-flags.cmake <<'EOF'
-          string(APPEND CMAKE_C_FLAGS " -include ctype.h")
-          string(APPEND CMAKE_CXX_FLAGS " -include cctype")
+          set(PALLSQL_FORCED_HEADERS
+              ctype.h errno.h pwd.h stdlib.h string.h strings.h
+              sys/types.h sys/time.h time.h unistd.h)
+          foreach(header IN LISTS PALLSQL_FORCED_HEADERS)
+            string(APPEND CMAKE_C_FLAGS " -include ${header}")
+          endforeach()
+          string(APPEND CMAKE_CXX_FLAGS " -include cctype -include cstring")
           EOF
           cat native/android-flags.cmake
 

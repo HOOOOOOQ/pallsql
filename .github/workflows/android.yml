@@ -105,8 +105,13 @@ jobs:
           # still fails the job.
           for file in $(find test -name '*_test.dart' | sort); do
             echo "::group::$file"
-            if ! timeout 480 flutter test "$file" --reporter expanded --timeout 120s 2>&1 | tee -a /tmp/test.log; then
+            if ! timeout 480 flutter test "$file" --reporter expanded --timeout 120s 2>&1 | tee -a /tmp/test.log | tee "/tmp/$(basename "$file").log"; then
               echo "::error::Tests failed or timed out: $file"
+              # The 10 annotation slots carry the reason, so the failing test is
+              # visible without downloading the artifact.
+              grep -m10 -E "Expected:|Actual:|Which:|TestFailure|failed|timed out|Error" "/tmp/$(basename "$file").log" | while IFS= read -r line; do
+                echo "::error::$file: $line"
+              done
               status=1
             fi
             echo "::endgroup::"
