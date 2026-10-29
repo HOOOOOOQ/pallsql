@@ -48,13 +48,18 @@ artefak ada di tab [Actions](https://github.com/HOOOOOOQ/pallsql/actions).
   URL localhost, document root, jumlah project, pemakaian storage, log terbaru,
   dan tombol buka situs di browser.
 - **Web server lokal**: `dart:io HttpServer` di `127.0.0.1:8080` (port bisa
-  diubah), static file + MIME type, directory index (`index.html`), kode status
-  HTTP yang benar, 404, request logging, deteksi port bentrok, start / stop /
-  restart, penanganan crash, proteksi path traversal termasuk variasi
-  URL-encoded.
-- **Database**: adapter netral engine, implementasi SQLite sungguhan (sqflite)
-  dengan daftar / buat / hapus database, tabel, kolom, jalankan query, grid
-  hasil, CRUD baris, import SQL, export SQL, history query, dan backup file.
+  diubah), static file + MIME type, directory index (`index.html`), body dan
+  `Content-Length` yang selalu cocok, HTML `no-store` (tidak pernah 304), ETag
+  berbasis isi untuk aset, 404/403/405/500 yang benar, request logging, deteksi
+  port bentrok, start / stop / restart yang idempoten, proteksi path traversal
+  termasuk variasi URL-encoded. Detail: [`docs/http-server.md`](docs/http-server.md).
+- **Database + SQL editor**: adapter netral engine, implementasi SQLite
+  sungguhan (sqflite) dengan daftar / buat / hapus database, tabel, kolom, CRUD
+  baris, import SQL, export SQL, history query, dan backup file. Halaman **SQL
+  editor** sendiri bisa dibuka dari tab Database (tombol *Open SQL editor* atau
+  ikon terminal di app bar) maupun dari detail database: pilih database, tulis
+  statement, Execute / Clear, lihat grid hasil, jumlah baris, error query,
+  loading state, dan riwayat yang bisa diketuk untuk dipakai ulang.
 - **File manager** di dalam `PALLSQL/`: list, buat, buka, edit, simpan, rename,
   copy, move, delete, import (document picker), export + share, multi-select,
   search, sort, ukuran file/folder.
@@ -78,7 +83,8 @@ artefak ada di tab [Actions](https://github.com/HOOOOOOQ/pallsql/actions).
 | Area | Status | Catatan |
 | --- | --- | --- |
 | UI tema gelap + Material 3 | Selesai | Komponen reusable: `PallSQLAppBar`, `ServerStatusCard`, `ServiceControlButton`, `TerminalOutput`, `DatabaseCard`, `ProjectCard`, `LogViewer`, `CodeEditorPanel`, `PALLSQLBottomNavigation` |
-| HTTP server lokal | Selesai | Static file, MIME, 404/403/405, ETag, request log, port conflict, path traversal |
+| HTTP server lokal | Selesai | Static file, MIME, 404/403/405/500, `Content-Length` persis, HTML `no-store`, ETag isi file, 304 hanya saat validator cocok, request log, port conflict, path traversal |
+| SQL editor mandiri | Selesai | `SqlEditorPage`: pilih database, Execute/Clear, hasil + jumlah baris, error, riwayat, pembuatan database |
 | SQLite | Selesai | sqflite (Android) / sqflite_common_ffi (test) |
 | File manager | Selesai | Sandboxed ke `PALLSQL/` |
 | Code editor | Selesai | Highlight ringan, bukan IntelliSense/parser penuh |
@@ -167,7 +173,10 @@ berjalan pada `push` dan `pull_request` ke `main` serta `workflow_dispatch`:
 
 1. **Job `quality`** — set up JDK 17 + Flutter 3.47.8 (cache aktif),
    `flutter pub get`, `flutter analyze`, `flutter test`, lalu cek format
-   (`dart format --set-exit-if-changed lib test`) sebagai gerbang terakhir.
+   (`dart format --output=none --set-exit-if-changed .`) sebagai gerbang
+   terakhir. Kalau formatter menemukan drift, CI menerapkan `dart format` dan
+   meng-commit hasilnya ke branch PR; bila token tidak boleh push, patch persis
+   hasil formatter dipublikasikan sebagai komentar PR agar bisa di-`git apply`.
 2. **Job `apk`** — `flutter pub get`, restore Gradle wrapper bila belum ada,
    `flutter build apk --debug`, `flutter build apk --release`, verifikasi file
    APK benar-benar ada dan berukuran wajar (≥ 1 MB), lalu upload artefak
@@ -303,9 +312,13 @@ signed with the debug key so they are installable but not store-ready.
 Pipeline CI pada repositori ini sudah diverifikasi berjalan (lihat tab Actions):
 
 - `flutter analyze`: **No issues found**
-- `flutter test`: **105 test lulus** (unit, service, repository, dan widget),
+- `flutter test`: **129 test lulus** (unit, service, repository, dan widget),
   termasuk uji layout yang merender setiap tab dan setiap layar pada permukaan
-  360x780 dp untuk menangkap overflow
+  360x780 dp, uji SQL editor (eksekusi query, error, riwayat, navigasi), uji
+  HTTP server (panjang body, 304 hanya saat cocok, 404 index hilang, port
+  bentrok), dan uji SQLite (CREATE/INSERT/SELECT + data bertahan setelah
+  koneksi ditutup)
+- `dart format --output=none --set-exit-if-changed .`: **bersih**
 - `flutter build apk --debug` dan `--release`: **berhasil**, artefak
   `PALLSQL-Android-APK` terunggah (debug + release + checksum)
 - `release.yml` pada tag `v0.1.0` dan `v0.1.1`: **berhasil** membuat GitHub
