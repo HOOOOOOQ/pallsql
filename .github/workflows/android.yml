@@ -57,10 +57,49 @@ jobs:
           set -o pipefail
           flutter analyze 2>&1 | tee /tmp/analyze.log
 
+      # Real MariaDB server for the client integration suite. The suite talks
+      # to it over TCP with PALLSQL's own protocol implementation, so a broken
+      # handshake, result set or prepared statement fails this job.
+      - name: Start MariaDB for the integration suite
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            mariadb-server mariadb-client
+          sudo service mariadb start || sudo systemctl start mariadb || true
+          for attempt in $(seq 1 60); do
+            if sudo mariadb -e "SELECT 1" >/dev/null 2>&1; then
+              echo "MariaDB is up after ${attempt}s"
+              break
+            fi
+            sleep 1
+          done
+          sudo mariadb -e "SELECT VERSION();"
+          sudo mariadb -e "
+            CREATE DATABASE IF NOT EXISTS pallsql_ci;
+            CREATE USER IF NOT EXISTS 'pallsql'@'127.0.0.1' IDENTIFIED BY 'pallsql_ci_pw';
+            CREATE USER IF NOT EXISTS 'pallsql'@'localhost' IDENTIFIED BY 'pallsql_ci_pw';
+            GRANT ALL PRIVILEGES ON *.* TO 'pallsql'@'127.0.0.1' WITH GRANT OPTION;
+            GRANT ALL PRIVILEGES ON *.* TO 'pallsql'@'localhost' WITH GRANT OPTION;
+            FLUSH PRIVILEGES;"
+          sudo mariadb -e "SELECT user, host, plugin FROM mysql.user WHERE user='pallsql';"
+
       - name: Unit, service and widget tests
+        env:
+          # Turns the real server integration tests on. The guard below fails
+          # the job if the suite silently skipped.
+          PALLSQL_MARIADB_IT: "1"
+          PALLSQL_MARIADB_HOST: "127.0.0.1"
+          PALLSQL_MARIADB_PORT: "3306"
+          PALLSQL_MARIADB_USER: "pallsql"
+          PALLSQL_MARIADB_PASSWORD: "pallsql_ci_pw"
         run: |
           set -o pipefail
           flutter test --reporter expanded 2>&1 | tee /tmp/test.log
+          if grep -q "SKIPPED: set PALLSQL_MARIADB_IT" /tmp/test.log; then
+            echo "::error::The MariaDB integration suite did not run"
+            exit 1
+          fi
 
       # Formatting is verified last so analyzer and test output stay readable.
       - name: Verify formatting
