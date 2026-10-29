@@ -105,6 +105,17 @@ class SyntaxHighlighter {
     ),
   };
 
+  /// Named groups the highlighter understands, in priority order.
+  static const List<String> _tokenGroups = <String>[
+    'comment',
+    'string',
+    'tag',
+    'variable',
+    'keyword',
+    'number',
+    'atrule',
+  ];
+
   /// Builds the styled span for [text].
   static TextSpan buildSpan({
     required String text,
@@ -125,16 +136,15 @@ class SyntaxHighlighter {
         spans.add(TextSpan(text: text.substring(cursor, match.start)));
       }
       final String token = text.substring(match.start, match.end);
+      // `namedGroup` throws ArgumentError for a group that the pattern does not
+      // define, and every language defines a different set (SQL has no `tag`,
+      // HTML has no `number`, ...). Only ask for groups that exist.
+      final Set<String> groups = match.groupNames.toSet();
       String? group;
-      for (final String candidate in <String>[
-        'comment',
-        'string',
-        'tag',
-        'variable',
-        'keyword',
-        'number',
-        'atrule',
-      ]) {
+      for (final String candidate in _tokenGroups) {
+        if (!groups.contains(candidate)) {
+          continue;
+        }
         if (match.namedGroup(candidate) != null) {
           group = candidate;
           break;

@@ -180,12 +180,20 @@ class WebServerService {
     final Future<WebServerSnapshot> future =
         _start(port: port, lanAccess: lanAccess);
     _starting = future;
-    future.whenComplete(() {
-      if (identical(_starting, future)) {
-        _starting = null;
-      }
-    });
+    // Handle both completion paths here: a bare `whenComplete` would rethrow
+    // a bind failure as an uncaught async error for the caller that awaits
+    // [future] via `expectLater` / try-catch.
+    future.then<void>(
+      (_) => _clearStarting(future),
+      onError: (Object error, StackTrace stackTrace) => _clearStarting(future),
+    );
     return future;
+  }
+
+  void _clearStarting(Future<WebServerSnapshot> future) {
+    if (identical(_starting, future)) {
+      _starting = null;
+    }
   }
 
   Future<WebServerSnapshot> _start({

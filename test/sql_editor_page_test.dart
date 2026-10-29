@@ -48,6 +48,11 @@ void main() {
     String? database,
     Widget? home,
   }) async {
+    // A tall surface so the result card is laid out without scrolling.
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 2.0;
+    addTearDown(tester.view.reset);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: <Override>[bootstrapProvider.overrideWithValue(bootstrap)],
