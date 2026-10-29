@@ -99,8 +99,7 @@ void main() {
     expect(columns.first.primaryKey, isTrue);
   });
 
-  test('runs the documented users flow and keeps the data on disk',
-      () async {
+  test('runs the documented users flow and keeps the data on disk', () async {
     await repository.createDatabase('pallsql');
 
     final QueryResult created = await repository.execute(

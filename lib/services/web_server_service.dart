@@ -767,8 +767,7 @@ class WebServerService {
 
   /// RFC 9110 weak comparison of `If-None-Match`.
   bool _matchesEtag(HttpRequest request, String etag) {
-    final String? header =
-        request.headers.value(HttpHeaders.ifNoneMatchHeader);
+    final String? header = request.headers.value(HttpHeaders.ifNoneMatchHeader);
     if (header == null || header.trim().isEmpty) {
       return false;
     }

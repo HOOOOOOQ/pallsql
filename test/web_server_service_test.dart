@@ -200,8 +200,7 @@ void main() {
     await first.drain<void>();
     final String etag = first.headers.value('etag')!;
 
-    await File('${root.path}/style.css')
-        .writeAsString('body { color: blue; }');
+    await File('${root.path}/style.css').writeAsString('body { color: blue; }');
 
     final HttpClientResponse byTag = await get(
       'http://127.0.0.1:$port/style.css',

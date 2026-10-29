@@ -56,8 +56,7 @@ class MimeTypes {
 
   /// Documents are the entry point of a site, so the server treats them
   /// specially: they are always revalidated and never cached by the browser.
-  static bool isHtml(String contentType) =>
-      contentType.startsWith('text/html');
+  static bool isHtml(String contentType) => contentType.startsWith('text/html');
 
   static bool isTextual(String contentType) =>
       contentType.startsWith('text/') ||

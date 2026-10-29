@@ -10,7 +10,8 @@ void main() {
   /// `buildTextSpan`, which crashed the whole editor widget.
   const Map<CodeLanguage, String> samples = <CodeLanguage, String>{
     CodeLanguage.sql: 'SELECT * FROM users WHERE id = 1; -- one row',
-    CodeLanguage.javascript: 'const a = "b"; // note\nfunction f() { return 1; }',
+    CodeLanguage.javascript:
+        'const a = "b"; // note\nfunction f() { return 1; }',
     CodeLanguage.php: '<?php echo "hi"; // note\nfunction f() { return \$x; }',
     CodeLanguage.html: '<!doctype html>\n<div class="a">text</div>',
     CodeLanguage.css: '/* note */\na { color: #9bff3d; margin: 4px; }',
