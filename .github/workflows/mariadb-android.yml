@@ -122,6 +122,8 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=native/install \
             -DWITH_UNIT_TESTS=OFF \
             -DWITH_EMBEDDED_SERVER=OFF \
+            -DWITHOUT_CLIENT=ON \
+            -DWITH_READLINE=OFF \
             -DWITH_MARIABACKUP=OFF \
             -DWITH_MROONGA=OFF \
             -DWITH_WSREP=OFF \
