@@ -105,7 +105,7 @@ class MysqlType {
     long: 'INT',
     float: 'FLOAT',
     double: 'DOUBLE',
-    null: 'NULL',
+    nullType: 'NULL',
     timestamp: 'TIMESTAMP',
     longLong: 'BIGINT',
     int24: 'MEDIUMINT',

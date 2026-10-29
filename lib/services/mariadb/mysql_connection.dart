@@ -327,7 +327,7 @@ class MariaDbConnection {
   // -------------------------------------------------------------------
 
   int _clientCapabilities({bool withDatabase = false}) {
-    int flags = MysqlCapability.base | MysqlCapability.pluginAuthLenencClientData;
+    int flags = MysqlCapability.base | MysqlCapability.pluginAuthLenEncClientData;
     if (withDatabase) {
       flags |= MysqlCapability.connectWithDb;
     }
