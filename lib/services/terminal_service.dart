@@ -599,7 +599,7 @@ class TerminalService {
         _sqlMode = true;
         _database = target;
         return TerminalResult(<TerminalLine>[
-          TerminalLine('SQL console - SQLite dialect, database ${target}.db'),
+          TerminalLine('SQL console - SQLite dialect, database $target.db'),
           const TerminalLine(
             'Statements are executed for real. .help lists console commands, '
             '\\q returns to the PALLSQL shell.',

@@ -118,7 +118,7 @@ class PallSqlTheme {
     return const PageTransitionsTheme(
       builders: <TargetPlatform, PageTransitionsBuilder>{
         TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
-        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
         TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
         TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
         TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
