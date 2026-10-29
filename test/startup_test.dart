@@ -7,6 +7,13 @@ import 'package:pallsql/services/app_bootstrap.dart';
 
 import 'support/test_bootstrap.dart';
 
+/// Every text on screen, used in failure reasons so CI logs stay diagnosable.
+String _screenText(WidgetTester tester) => tester
+    .widgetList<Text>(find.byType(Text))
+    .map((Text text) => text.data ?? '')
+    .where((String value) => value.isNotEmpty)
+    .join(' | ');
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -75,7 +82,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 40));
     }
 
-    expect(find.byType(HomeShell), findsOneWidget);
+    expect(find.byType(HomeShell), findsOneWidget,
+        reason: 'DEBUG screen: ${_screenText(tester)}');
     expect(find.text('Home'), findsWidgets);
     expect(tester.takeException(), isNull);
   });

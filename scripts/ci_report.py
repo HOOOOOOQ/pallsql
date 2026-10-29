@@ -88,7 +88,8 @@ def test_lines(lines: list[str]) -> list[str]:
 
 def _test_marker_lines(lines: list[str]) -> list[str]:
     markers = ("Some tests failed", "Expected:", "Actual:", "Which:", "EXCEPTION",
-               "Error:", "error:", "failed", "FAILED", "Test failed", "[E]")
+               "Error:", "error:", "failed", "FAILED", "Test failed", "[E]",
+               "DEBUG")
     picked = [line.strip() for line in lines if any(m in line for m in markers)]
     if not picked:
         picked = [line.strip() for line in lines[-50:] if line.strip()]

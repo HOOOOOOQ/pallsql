@@ -11,6 +11,13 @@ import 'package:pallsql/widgets/query_result_view.dart';
 
 import 'support/test_bootstrap.dart';
 
+/// Every text on screen, used in failure reasons so CI logs stay diagnosable.
+String _screenText(WidgetTester tester) => tester
+    .widgetList<Text>(find.byType(Text))
+    .map((Text text) => text.data ?? '')
+    .where((String value) => value.isNotEmpty)
+    .join(' | ');
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -105,8 +112,10 @@ void main() {
     await tester.tap(find.text('Execute'));
     await settle(tester, rounds: 30);
 
-    expect(find.text('PALLSQL'), findsOneWidget);
-    expect(find.byType(QueryResultView), findsOneWidget);
+    expect(find.byType(QueryResultView), findsOneWidget,
+        reason: 'DEBUG screen: ${_screenText(tester)}');
+    expect(find.text('PALLSQL'), findsOneWidget,
+        reason: 'DEBUG screen: ${_screenText(tester)}');
     expect(find.textContaining('1 row'), findsWidgets);
     expect(tester.takeException(), isNull);
 
