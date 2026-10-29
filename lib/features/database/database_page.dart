@@ -85,7 +85,7 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
 
   Future<void> _backupDatabase(DatabaseInfo database) async {
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-    final SqliteDatabaseRepository repository =
+    final MariaDbRepository repository =
         ref.read(databaseRepositoryProvider);
     final AppBootstrapRef bootstrap = AppBootstrapRef(ref);
     try {

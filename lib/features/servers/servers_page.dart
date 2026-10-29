@@ -391,10 +391,10 @@ class _ServersPageState extends ConsumerState<ServersPage> {
                 const Icon(Icons.info_outline_rounded,
                     size: 16, color: PallSqlColors.warning),
                 const SizedBox(width: 8),
-                const Expanded(
+                Expanded(
                   child: Text(
                     _mariaDbSubtitle(mariadb, mariadbStatus),
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 11.5,
                       color: PallSqlColors.textSecondary,
                       height: 1.4,

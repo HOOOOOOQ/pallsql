@@ -41,7 +41,7 @@ class _DatabaseDetailPageState extends ConsumerState<DatabaseDetailPage> {
   QueryResult? _result;
   bool _loading = true;
 
-  SqliteDatabaseRepository get _repository =>
+  MariaDbRepository get _repository =>
       ref.read(databaseRepositoryProvider);
 
   @override

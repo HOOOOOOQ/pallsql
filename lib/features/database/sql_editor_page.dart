@@ -26,7 +26,7 @@ import '../editor/syntax_highlighter.dart';
 /// Standalone SQL editor: pick a database, write SQL, run it, read the result.
 ///
 /// The page is the single entry point for ad-hoc SQL. It uses the shared
-/// [SqliteDatabaseRepository] from the bootstrap, so it reuses the very same
+/// [MariaDbRepository] from the bootstrap, so it reuses the very same
 /// MariaDB connection as the table browser; no second driver is created.
 ///
 /// `SHOW TABLES`, `DESCRIBE`, `SHOW CREATE TABLE`, ... are answered by the
@@ -54,7 +54,7 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
   bool _fullscreen = false;
   int _tab = 0;
 
-  SqliteDatabaseRepository get _repository =>
+  MariaDbRepository get _repository =>
       ref.read(databaseRepositoryProvider);
 
   @override

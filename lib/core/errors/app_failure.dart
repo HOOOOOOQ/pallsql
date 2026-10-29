@@ -43,11 +43,6 @@ class PathSecurityFailure extends AppFailure {
   const PathSecurityFailure(super.message, {super.details});
 }
 
-/// The database server rejected the statement or object.
-class SqlRejectedFailure extends AppFailure {
-  const SqlRejectedFailure(super.message, {super.details});
-}
-
 /// A file could not be parsed, for example a corrupted ZIP archive.
 class ArchiveFailure extends AppFailure {
   const ArchiveFailure(super.message, {super.details});

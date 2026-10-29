@@ -13,6 +13,7 @@ import '../services/log_sink.dart';
 import '../services/mariadb/mariadb_client.dart';
 import '../services/mariadb/mysql_connection.dart';
 import '../services/mariadb/mysql_protocol.dart';
+import '../services/mariadb/mysql_values.dart';
 import 'database_contract.dart';
 
 /// MariaDB implementation of [DatabaseRepository].
