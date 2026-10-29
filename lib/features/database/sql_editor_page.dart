@@ -140,18 +140,14 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
     if (_running) {
       return;
     }
-    final List<DatabaseInfo> databases =
-        ref.read(databaseProvider).valueOrNull?.databases ??
-            const <DatabaseInfo>[];
     final String? name = _database;
     if (name == null || name.isEmpty) {
       _snack('Select a database first', error: true);
       return;
     }
-    if (!databases.any((DatabaseInfo info) => info.name == name)) {
-      _snack('Database $name is no longer available', error: true);
-      return;
-    }
+    // The list can still be loading (or stale) while the file already exists,
+    // so the truth comes from the repository: it reports a missing database
+    // with a real error instead of this page guessing.
     final String database = name;
     final String sql = _sqlController.text.trim();
     if (sql.isEmpty) {

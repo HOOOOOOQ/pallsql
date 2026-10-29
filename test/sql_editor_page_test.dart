@@ -16,7 +16,7 @@ String _screenText(WidgetTester tester) => tester
     .widgetList<Text>(find.byType(Text))
     .map((Text text) => text.data ?? '')
     .where((String value) => value.isNotEmpty)
-    .join(' | ');
+    .join(' // ');
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -40,6 +40,21 @@ void main() {
         () => Future<void>.delayed(const Duration(milliseconds: 15)),
       );
       await tester.pump(const Duration(milliseconds: 15));
+    }
+  }
+
+  /// Pumps real async progress until [finder] matches, so a slow runner cannot
+  /// turn a working query into a flaky failure.
+  Future<void> waitFor(
+    WidgetTester tester,
+    Finder finder, {
+    int rounds = 200,
+  }) async {
+    for (int i = 0; i < rounds && finder.evaluate().isEmpty; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump(const Duration(milliseconds: 10));
     }
   }
 
@@ -110,7 +125,7 @@ void main() {
     );
     await tester.pump();
     await tester.tap(find.text('Execute'));
-    await settle(tester, rounds: 30);
+    await waitFor(tester, find.byType(QueryResultView));
 
     expect(find.byType(QueryResultView), findsOneWidget,
         reason: 'DEBUG screen: ${_screenText(tester)}');

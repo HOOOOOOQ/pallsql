@@ -14,7 +14,7 @@ String _screenText(WidgetTester tester) => tester
     .widgetList<Text>(find.byType(Text))
     .map((Text text) => text.data ?? '')
     .where((String value) => value.isNotEmpty)
-    .join(' | ');
+    .join(' // ');
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
