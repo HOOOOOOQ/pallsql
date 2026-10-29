@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:sqflite_common/sqlite_api.dart';
 
+import '../models/database_models.dart';
 import '../models/log_entry.dart';
 import '../repositories/database_repository.dart';
 import 'log_sink.dart';
@@ -173,9 +174,8 @@ class LegacySqliteMigration {
     int statements = 0;
     try {
       final String schema = legacy.targetSchema;
-      final List<Map<String, Object?>> existing =
-          await repository.listDatabases();
-      if (!existing.any((dynamic info) => info.name == schema)) {
+      final List<DatabaseInfo> existing = await repository.listDatabases();
+      if (!existing.any((DatabaseInfo info) => info.name == schema)) {
         await repository.createDatabase(schema);
         statements++;
       }

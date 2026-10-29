@@ -9,6 +9,7 @@ import '../../models/database_models.dart';
 import '../../models/log_entry.dart';
 import '../../models/service_status.dart';
 import '../../providers/app_providers.dart';
+import '../../services/mariadb/mariadb_service.dart';
 import '../../services/php_runtime_service.dart';
 import '../../services/web_server_service.dart';
 import '../../widgets/database_card.dart';

@@ -545,4 +545,18 @@ try {
     echo '<p>Database error: ' . htmlspecialchars(\$error->getMessage()) . '</p>';
 }
 ''';
+
+  static const String _databaseSampleReadme = '''
+# Database sample
+
+PALLSQL runs a native MariaDB server on the phone.
+
+This sample connects with PHP's `pdo_mysql` extension to
+`127.0.0.1:3306`, schema `app`. Start the server in the **Database** tab and
+create the `app` schema (or change `\$database` in the sample). A PHP runtime
+built for Android with `pdo_mysql` is required for PHP to reach MariaDB; both
+services report their own status separately in the app.
+
+See `docs/mariadb-android.md` in the repository for the runtime details.
+''';
 }

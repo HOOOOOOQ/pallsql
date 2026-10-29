@@ -11,6 +11,7 @@ import '../native_bridge.dart';
 import 'mariadb_client.dart';
 import 'mariadb_config.dart';
 import 'mysql_connection.dart';
+import 'mysql_protocol.dart';
 
 /// Lifecycle of the native MariaDB server process.
 ///
@@ -585,12 +586,15 @@ class MariaDBServiceManager {
 
   Future<bool> _ensureInitialised(bool allowed) async {
     final Directory data = Directory(dataDirectory);
-    final bool hasData = await data.exists() &&
-        await data
-            .list()
-            .where((FileSystemEntity entity) =>
-                entity is File && entity.path.endsWith('ibdata1'))
-            .isNotEmpty;
+    bool hasData = false;
+    if (await data.exists()) {
+      await for (final FileSystemEntity entity in data.list()) {
+        if (entity is File && entity.path.endsWith('ibdata1')) {
+          hasData = true;
+          break;
+        }
+      }
+    }
     if (hasData) {
       logs.debug(LogSource.database, 'Reusing existing MariaDB data directory');
       return true;
