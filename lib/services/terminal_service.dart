@@ -6,6 +6,8 @@ import '../models/database_models.dart';
 import '../models/file_entry.dart';
 import '../models/log_entry.dart';
 import '../models/project.dart';
+import '../repositories/database_repository.dart'
+    show MariaDbRepository;
 import 'mariadb/mariadb_service.dart';
 import 'php_runtime_service.dart';
 import 'web_server_service.dart';
@@ -408,7 +410,7 @@ class TerminalService {
       TerminalLine('  SHOW TABLES;        answered by MariaDB itself'),
       TerminalLine('  DESCRIBE <table>;   answered by MariaDB itself'),
       TerminalLine('  SELECT VERSION();   real engine version'),
-      TerminalLine('  .databases          list database files'),
+      TerminalLine('  .databases          list MariaDB schemas'),
       TerminalLine('  .tables             list tables of the current database'),
       TerminalLine('  .use <database>     switch database'),
       TerminalLine('  .read <file.sql>    execute a script from the workspace'),
@@ -622,7 +624,14 @@ class TerminalService {
             databases.any((DatabaseInfo d) => d.name == _database)) {
           target = _database;
         } else {
-          target = databases.first.name;
+          // Never open the console on `mysql`/`information_schema` by accident.
+          for (final DatabaseInfo database in databases) {
+            if (!MariaDbRepository.systemSchemas.contains(database.name)) {
+              target = database.name;
+              break;
+            }
+          }
+          target ??= databases.first.name;
         }
         _sqlMode = true;
         _database = target;

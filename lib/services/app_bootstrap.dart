@@ -77,8 +77,8 @@ class AppBootstrap {
   AppSettings settings;
 
   /// Builds the whole object graph. [databaseFactory] must be a working
-  /// sqflite factory (`databaseFactory` on Android, `databaseFactoryFfi` in
-  /// tests).
+  /// [mariaDbConfig] overrides the stored configuration (tests and tooling).
+  /// Without it the value in `config/server/mariadb.json` is used.
   static Future<AppBootstrap> create({
     Directory? workspaceRoot,
     NativeBridge? native,

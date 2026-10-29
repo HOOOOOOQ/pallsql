@@ -20,7 +20,7 @@ enum ProjectTemplate {
   htmlForm('HTML form', 'A form posting to a PHP endpoint'),
   databaseSample(
     'Database sample',
-    'PHP snippet reading the SQLite database (needs a PHP runtime)',
+    'PHP snippet reading MariaDB through pdo_mysql (needs a PHP runtime)',
   );
 
   const ProjectTemplate(this.label, this.description);

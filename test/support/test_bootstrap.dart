@@ -77,6 +77,32 @@ Future<void> prepareTestSchema(AppBootstrap bootstrap) async {
   }
 }
 
+/// Creates a schema that no other test can collide with.
+///
+/// MariaDB commits DDL immediately, so widget tests must never reuse a fixed
+/// name: a leftover schema from an earlier run made `CREATE DATABASE` fail with
+/// "database exists". Every suite therefore allocates its own schema.
+Future<String> createScratchSchema(
+  AppBootstrap bootstrap,
+  String prefix,
+) async {
+  final String name =
+      '${prefix}_${DateTime.now().microsecondsSinceEpoch % 100000000}';
+  await bootstrap.databases.createDatabase(name);
+  return name;
+}
+
+/// Removes a scratch schema. A failure is printed instead of thrown so the
+/// remaining assertions still run, but it never silently hides a leak.
+Future<void> dropScratchSchema(AppBootstrap bootstrap, String name) async {
+  try {
+    await bootstrap.databases.deleteDatabase(name);
+  } on Object catch (error) {
+    // ignore: avoid_print
+    print('Could not drop scratch schema $name: $error');
+  }
+}
+
 /// Drops the shared test schema so every suite starts clean.
 Future<void> dropTestSchema(AppBootstrap bootstrap) async {
   try {

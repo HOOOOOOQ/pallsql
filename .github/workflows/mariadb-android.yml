@@ -105,6 +105,9 @@ jobs:
           tar -xzf /tmp/mariadb.tar.gz -C native/src
           ls native/src
 
+      # NDK r27's `build/cmake/flags.cmake` uses `IN_LIST`, which needs policy
+      # CMP0057 NEW. MariaDB asks for an older CMake, so the policy is forced on
+      # the command line; the first attempt failed with exactly that error.
       - name: Configure the cross build
         run: |
           set -euo pipefail
@@ -142,6 +145,7 @@ jobs:
             -DPLUGIN_SPHINX=NO \
             -DPLUGIN_CONNECT=NO \
             -DCMAKE_CROSSCOMPILING=ON \
+            -DCMAKE_POLICY_DEFAULT_CMP0057=NEW \
             2>&1 | tee native/build-configure.log || {
               echo "::error::The cmake configure step failed; the error block of native/build-configure.log follows."
               grep -m1 -A9 "CMake Error" native/build-configure.log | while IFS= read -r line; do

@@ -20,7 +20,7 @@ import '../terminal/terminal_page.dart';
 import 'database_detail_page.dart';
 import 'sql_editor_page.dart';
 
-/// Database tab: engine status, database files and query history.
+/// Database tab: server status, MariaDB schemas and query history.
 class DatabasePage extends ConsumerStatefulWidget {
   const DatabasePage({super.key});
 
@@ -37,7 +37,7 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
       context: context,
       title: 'New MariaDB database',
       label: 'Database name',
-      message: 'A file named <name>.db is created in PALLSQL/database.',
+      message: 'A schema named <name> is created on the local MariaDB server.',
       confirmLabel: 'Create',
       validator: Validators.databaseNameError,
     );
@@ -63,8 +63,8 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
     final bool confirmed = await showConfirmDialog(
       context: context,
       title: 'Delete ${database.name}?',
-      message: 'The database file and its -wal/-shm sidecars are removed from '
-          'the workspace. This cannot be undone unless you have a backup.',
+      message: 'The schema and every table inside it are dropped from the '
+          'local MariaDB server. This cannot be undone without a backup.',
       confirmLabel: 'Delete',
       destructive: true,
     );
@@ -120,6 +120,13 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
     final List<DatabaseInfo> databases =
         ref.read(databaseProvider).valueOrNull?.databases ??
             const <DatabaseInfo>[];
+    // `information_schema`/`mysql` are read-only bookkeeping; a user schema is
+    // the only sensible default for the editor.
+    for (final DatabaseInfo database in databases) {
+      if (!MariaDbRepository.systemSchemas.contains(database.name)) {
+        return database;
+      }
+    }
     return databases.isEmpty ? null : databases.first;
   }
 

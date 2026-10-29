@@ -112,7 +112,7 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
       context: context,
       title: 'New MariaDB database',
       label: 'Database name',
-      message: 'A file named <name>.db is created in PALLSQL/database.',
+      message: 'A schema named <name> is created on the local MariaDB server.',
       confirmLabel: 'Create',
       validator: Validators.databaseNameError,
     );

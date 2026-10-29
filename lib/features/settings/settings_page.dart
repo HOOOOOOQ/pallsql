@@ -484,7 +484,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 PallSqlKeyValue(
                   label: 'Dialect',
-                  value: 'SQLite dialect (not MySQL/MariaDB)',
+                  value: 'MariaDB dialect, spoken by the local server',
                   monospace: true,
                 ),
                 PallSqlKeyValue(
