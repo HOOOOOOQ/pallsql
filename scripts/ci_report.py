@@ -97,21 +97,49 @@ def _test_marker_lines(lines: list[str]) -> list[str]:
 
 
 def failing_lines(lines: list[str]) -> list[str]:
-    """Names of the failing tests first, then the details of each failure.
+    """Name of each failing test followed by the details of that failure.
 
-    The expanded reporter marks a failed test with a trailing `[E]`, so the
-    names can be listed even when the assertion block is truncated.
+    The expanded reporter marks a failed test with a trailing `[E]`, and prints
+    the assertion block just before it, so the context is collected backwards
+    from the marker. This keeps every failure debuggable from the annotations
+    alone (artifacts live on a CDN that some networks block).
     """
-    names: list[str] = []
-    for line in lines:
+    markers = (
+        "Expected:",
+        "Actual:",
+        "Which:",
+        "Bad state",
+        "DEBUG",
+        "was thrown running a test",
+        "main.<anonymous closure>",
+        "Pending timers",
+    )
+    collected: list[str] = []
+    seen: set[str] = set()
+    for index, line in enumerate(lines):
         match = TEST_FAILURE.search(line.strip())
         if not match:
             continue
         name = f"FAILED {match.group('file')}: {match.group('name')}"
-        if name not in names:
-            names.append(name)
-    details = [line for line in test_lines(lines) if " [E]" not in line]
-    return names + details
+        if name in seen:
+            continue
+        seen.add(name)
+        details: list[str] = []
+        for back in range(index - 1, max(-1, index - 80), -1):
+            item = lines[back].strip()
+            if not item:
+                continue
+            if " [E]" in item:
+                break
+            if any(marker in item for marker in markers):
+                details.append(item)
+            if len(details) >= 8:
+                break
+        collected.append(name)
+        collected.extend(reversed(details))
+    if collected:
+        return collected
+    return _test_marker_lines(lines)
 
 
 def gradle_lines(lines: list[str]) -> list[str]:

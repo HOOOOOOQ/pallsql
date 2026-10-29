@@ -59,8 +59,11 @@ void main() {
 
   testWidgets('the gate boots the workspace and opens the dashboard',
       (WidgetTester tester) async {
-    final AppBootstrap bootstrap = await createTestBootstrap();
-    addTearDown(() => disposeTestBootstrap(bootstrap));
+    // Real file I/O has to run outside the fake async zone of a widget test.
+    final AppBootstrap bootstrap = (await tester.runAsync(createTestBootstrap))!;
+    addTearDown(() async {
+      await tester.runAsync(() => disposeTestBootstrap(bootstrap));
+    });
 
     await tester.pumpWidget(
       StartupGate(
@@ -75,7 +78,7 @@ void main() {
     await tester.pump();
     expect(find.byType(PallsqlSplashScreen), findsOneWidget);
 
-    for (int i = 0; i < 12; i++) {
+    for (int i = 0; i < 24; i++) {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 10)),
       );

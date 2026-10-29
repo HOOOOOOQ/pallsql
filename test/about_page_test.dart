@@ -49,7 +49,7 @@ void main() {
     // are asserted after scrolling the way a user would.
     final Finder scrollable = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(
-      find.textContaining('Not bundled'),
+      find.text('Credits and licenses'),
       300,
       scrollable: scrollable,
     );
