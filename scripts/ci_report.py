@@ -13,12 +13,15 @@ Usage:
 from __future__ import annotations
 
 import os
+import re
 import sys
 
 MAX_LINES = 120
 LINES_PER_ANNOTATION = 5
 MAX_ANNOTATIONS = 9
 MAX_PAYLOAD = 1100
+
+TEST_FAILURE = re.compile(r"^(?:[^\s]+\s+)?(?:\+\d+\s+-\d+:\s+)?(?P<file>[^\s:]+\.dart): (?P<name>.*?) \[E\]$")
 
 ANALYZE_MARKERS = (" • ", "error •", "warning •", "info •", "Failed", "Error:")
 
@@ -92,6 +95,24 @@ def _test_marker_lines(lines: list[str]) -> list[str]:
     return picked
 
 
+def failing_lines(lines: list[str]) -> list[str]:
+    """Names of the failing tests first, then the details of each failure.
+
+    The expanded reporter marks a failed test with a trailing `[E]`, so the
+    names can be listed even when the assertion block is truncated.
+    """
+    names: list[str] = []
+    for line in lines:
+        match = TEST_FAILURE.search(line.strip())
+        if not match:
+            continue
+        name = f"FAILED {match.group('file')}: {match.group('name')}"
+        if name not in names:
+            names.append(name)
+    details = [line for line in test_lines(lines) if " [E]" not in line]
+    return names + details
+
+
 def gradle_lines(lines: list[str]) -> list[str]:
     start = None
     for index, line in enumerate(lines):
@@ -141,7 +162,7 @@ def emit(kind: str, lines: list[str]) -> None:
 
 def main(argv: list[str]) -> int:
     if len(argv) < 3:
-        print("usage: ci_report.py <analyze|errors|notes|test|gradle|raw> <logfile> [logfile...]")
+        print("usage: ci_report.py <analyze|errors|notes|test|failing|gradle|raw> <logfile> [logfile...]")
         return 2
     mode = argv[1]
     collected: list[str] = []
@@ -155,6 +176,8 @@ def main(argv: list[str]) -> int:
                 collected.append(f"[{label}] {line}")
         elif mode == "test":
             collected.extend([f"[{label}] {line}" for line in test_lines(lines)])
+        elif mode == "failing":
+            collected.extend([f"[{label}] {line}" for line in failing_lines(lines)])
         elif mode == "gradle":
             collected.extend([f"[{label}] {line}" for line in gradle_lines(lines)])
         else:

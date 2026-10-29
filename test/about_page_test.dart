@@ -45,9 +45,25 @@ void main() {
     expect(find.text('@pallemnih_'), findsOneWidget);
     expect(find.text(AppInfo.developerInstagramUrl), findsOneWidget);
     expect(find.text('Visit Instagram'), findsOneWidget);
-    expect(find.text(AppInfo.copyright), findsOneWidget);
+    // A ListView only builds what is on screen, so the credits and the footer
+    // are asserted after scrolling the way a user would.
+    final Finder scrollable = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.textContaining('Not bundled').first,
+      300,
+      scrollable: scrollable,
+    );
+    await tester.pump(const Duration(milliseconds: 50));
     expect(find.textContaining('MIT'), findsWidgets);
     expect(find.textContaining('Not bundled'), findsWidgets);
+
+    await tester.scrollUntilVisible(
+      find.text(AppInfo.copyright),
+      300,
+      scrollable: scrollable,
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text(AppInfo.copyright), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

@@ -41,7 +41,8 @@ void main() {
     expect(await index.exists(), isTrue);
     final String html = await index.readAsString();
     expect(html, contains('<title>PALLSQL Local Server</title>'));
-    expect(html, contains('Your local server is running'));
+    // The accent-highlighted word is part of the landing page markup.
+    expect(html, contains('Your local server is <span>running</span>'));
     expect(html, contains('PALLSQL/htdocs/index.html'));
     expect(html, contains('name="viewport"'));
     expect(html.toLowerCase(), contains('<!doctype html>'));
