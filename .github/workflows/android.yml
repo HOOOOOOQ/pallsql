@@ -24,6 +24,10 @@ jobs:
   quality:
     name: Analyze and test
     runs-on: ubuntu-latest
+    # Only the formatting repair step needs to write, and only for pull
+    # requests that come from this repository.
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -83,6 +87,29 @@ jobs:
           done < /tmp/changed.txt
           echo "Collected $(wc -l < /tmp/changed.txt) formatted file(s)."
           cat /tmp/changed.txt
+
+      # Commits the canonical formatting back to the branch instead of asking a
+      # human to reproduce `dart format` by hand. Pushes made with GITHUB_TOKEN
+      # do not start another run, so the next push validates the result.
+      - name: Apply and push formatting
+        if: >-
+          failure() &&
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          set -euo pipefail
+          [ -f /tmp/changed.txt ] || exit 0
+          [ -s /tmp/changed.txt ] || exit 0
+          dart format .
+          git config user.name "pallsql-format-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing to commit."
+            exit 0
+          fi
+          git commit -m "style: apply dart format (automated)"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
 
       - name: Upload formatter output
         if: failure()
