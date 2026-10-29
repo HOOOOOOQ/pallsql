@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-import '../../core/constants/app_info.dart';
 import '../../models/log_entry.dart';
 import '../../models/service_status.dart';
 import '../log_sink.dart';

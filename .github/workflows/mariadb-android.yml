@@ -84,10 +84,12 @@ jobs:
           curl -fsSL --retry 3 -o /tmp/mariadb.tar.gz "$url"
           actual="$(sha256sum /tmp/mariadb.tar.gz | cut -d' ' -f1)"
           echo "sha256=$actual"
-          echo "$actual  /tmp/mariadb.tar.gz" | sha256sum -c - || {
-            echo "::warning::Checksum does not match MARIADB_SHA256; the build continues but the source is recorded in the report."
-            echo "$actual" > native/src/SOURCE_SHA256.txt
-          }
+          echo "$actual" > native/src/SOURCE_SHA256.txt
+          if [ "$actual" != "$MARIADB_SHA256" ]; then
+            echo "::warning::MARIADB_SHA256 does not match the downloaded archive (expected $MARIADB_SHA256, got $actual). The archive hash is recorded in the build report instead of being silently trusted."
+          else
+            echo "Source checksum matches the pinned MARIADB_SHA256."
+          fi
           tar -xzf /tmp/mariadb.tar.gz -C native/src
           ls native/src
 
@@ -128,12 +130,26 @@ jobs:
             -DPLUGIN_SPHINX=NO \
             -DPLUGIN_CONNECT=NO \
             -DCMAKE_CROSSCOMPILING=ON \
-            2>&1 | tee native/build-configure.log
+            2>&1 | tee native/build-configure.log || {
+              echo "::error::The cmake configure step failed; the last lines of native/build-configure.log follow."
+              tail -n 10 native/build-configure.log | while IFS= read -r line; do
+                [ -n "$line" ] && echo "::error::$line"
+              done
+              exit 1
+            }
 
+      # The 10 annotation slots per step let the exact compiler/configure error
+      # reach the pull request without downloading the log artifact.
       - name: Build mariadbd
         run: |
           set -euo pipefail
-          ninja -C native/build mariadbd 2>&1 | tee native/build-make.log
+          ninja -C native/build mariadbd 2>&1 | tee native/build-make.log || {
+            echo "::error::The mariadbd build failed; the last lines of native/build-make.log follow."
+            tail -n 10 native/build-make.log | while IFS= read -r line; do
+              [ -n "$line" ] && echo "::error::$line"
+            done
+            exit 1
+          }
 
       - name: Validate the produced binary
         run: |
