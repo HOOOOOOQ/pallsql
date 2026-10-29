@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:sqflite_common/sqlite_api.dart';
 
 import '../models/app_settings.dart';
 import '../models/database_models.dart';
@@ -13,6 +12,10 @@ import '../repositories/log_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/settings_repository.dart';
 import 'backup_service.dart';
+import 'mariadb/mariadb_client.dart';
+import 'mariadb/mariadb_config.dart';
+import 'mariadb/mariadb_service.dart';
+import 'mariadb/mysql_connection.dart';
 import 'native_bridge.dart';
 import 'php_runtime_service.dart';
 import 'web_server_service.dart';
@@ -54,6 +57,7 @@ class AppBootstrap {
     required this.projects,
     required this.databases,
     required this.backups,
+    required this.mariadb,
   });
 
   final Workspace workspace;
@@ -65,7 +69,10 @@ class AppBootstrap {
   final WebServerService webServer;
   final FileRepository files;
   final ProjectRepository projects;
-  final SqliteDatabaseRepository databases;
+  final MariaDbRepository databases;
+
+  /// Lifecycle owner of the native MariaDB server.
+  final MariaDBServiceManager mariadb;
   final BackupService backups;
   AppSettings settings;
 
@@ -73,10 +80,11 @@ class AppBootstrap {
   /// sqflite factory (`databaseFactory` on Android, `databaseFactoryFfi` in
   /// tests).
   static Future<AppBootstrap> create({
-    required DatabaseFactory databaseFactory,
     Directory? workspaceRoot,
     NativeBridge? native,
     bool startServerIfConfigured = true,
+    bool startDatabaseIfConfigured = true,
+    MariaDbConfig? mariaDbConfig,
     void Function(String step)? onProgress,
   }) async {
     onProgress?.call('Preparing workspace');
@@ -131,22 +139,68 @@ class AppBootstrap {
         FileRepository(workspace: workspace, logs: logs);
     final ProjectRepository projects =
         ProjectRepository(workspace: workspace, logs: logs);
-    final SqliteDatabaseRepository databases = SqliteDatabaseRepository(
-      directory: workspace.database,
-      factory: databaseFactory,
+    // ---------------------------------------------------------------
+    // MariaDB: the only database engine in PALLSQL.
+    // The server process is native, the client speaks the MariaDB wire
+    // protocol; there is no embedded fallback.
+    // ---------------------------------------------------------------
+    final MariaDbConfigStore mariadbConfigStore = MariaDbConfigStore(
+      directory: Directory(p.join(workspace.rootPath, 'config', 'server')),
+    );
+    final MariaDbConfig mariadbConfig = mariaDbConfig ??
+        await mariadbConfigStore.load();
+    final MariaDBServiceManager mariadb = MariaDBServiceManager(
+      workspaceRoot: workspace.rootPath,
+      native: bridge,
+      logs: logs,
+      config: mariadbConfig,
+      configStore: mariadbConfigStore,
+    );
+    final MariaDbClient mariadbClient = MariaDbClient(
+      MariaDbConnectionConfig(
+        host: mariadbConfig.host,
+        port: mariadbConfig.port,
+        user: mariadbConfig.user,
+        password: mariadbConfig.password,
+      ),
+      logs: logs,
+    );
+    final MariaDbRepository databases = MariaDbRepository(
+      client: mariadbClient,
       logs: logs,
       historyFile: workspace.queryHistoryFile,
     );
     await databases.loadHistory();
-    final EngineAvailability sqlite = await databases.availability();
+    onProgress?.call('MariaDB runtime detected');
+    if (startDatabaseIfConfigured) {
+      final MariaDbRuntimeInfo runtime = await mariadb.refreshRuntime();
+      if (runtime.installed) {
+        final MariaDbStatus status = await mariadb.refresh();
+        if (!status.isRunning) {
+          logs.info(
+            LogSource.database,
+            'MariaDB runtime present but stopped; starting it',
+          );
+          await mariadb.start();
+        }
+      } else {
+        logs.warning(
+          LogSource.database,
+          'MariaDB runtime unavailable: ${runtime.reason}',
+        );
+      }
+    }
+    final EngineAvailability mariadbAvailability = await databases.availability();
     logs.info(
       LogSource.database,
-      sqlite.available
-          ? 'SQLite ${sqlite.version ?? ''} ready'.trim()
-          : 'SQLite unavailable: ${sqlite.reason ?? 'unknown'}',
+      mariadbAvailability.available
+          ? 'MariaDB ${mariadbAvailability.version ?? ''} ready'.trim()
+          : 'MariaDB unavailable: ${mariadbAvailability.reason ?? 'unknown'}',
     );
     onProgress?.call(
-      sqlite.available ? 'SQLite engine ready' : 'SQLite engine unavailable',
+      mariadbAvailability.available
+          ? 'MariaDB server ready'
+          : 'MariaDB runtime not installed',
     );
     final BackupService backups =
         BackupService(workspace: workspace, logs: logs);
@@ -179,6 +233,7 @@ class AppBootstrap {
       projects: projects,
       databases: databases,
       backups: backups,
+      mariadb: mariadb,
     );
 
     if (startServerIfConfigured && settings.autoStartServer) {

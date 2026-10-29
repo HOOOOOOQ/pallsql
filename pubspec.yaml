@@ -1,7 +1,7 @@
 name: pallsql
-description: "PALLSQL - offline mobile web development environment for Android."
+description: "PALLSQL - offline mobile web development environment for Android, powered by a native MariaDB server."
 publish_to: none
-version: 0.2.0+4
+version: 0.3.0+5
 
 environment:
   sdk: ">=3.6.0 <4.0.0"
@@ -12,6 +12,10 @@ dependencies:
   flutter_riverpod: ^2.6.0
   path: ^1.9.0
   path_provider: ^2.1.4
+  # MariaDB is the database engine (lib/services/mariadb/*). These two remain
+  # ONLY for `LegacySqliteMigration`, which reads old PALLSQL 0.1/0.2 `.db`
+  # files read-only so users can copy their data into MariaDB. Nothing in the
+  # app executes application SQL on SQLite any more.
   sqflite: ^2.3.3+1
   sqflite_common: ^2.5.4
   archive: ^3.6.0

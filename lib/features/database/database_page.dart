@@ -35,7 +35,7 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
     final String? name = await showPromptDialog(
       context: context,
-      title: 'New SQLite database',
+      title: 'New MariaDB database',
       label: 'Database name',
       message: 'A file named <name>.db is created in PALLSQL/database.',
       confirmLabel: 'Create',
@@ -147,7 +147,7 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
     return Scaffold(
       appBar: PallSQLAppBar(
         title: 'Database',
-        subtitle: 'SQLite dialect - offline engine',
+        subtitle: 'MariaDB dialect - local server',
         actions: <Widget>[
           IconButton(
             tooltip: 'Database logs',
@@ -195,7 +195,7 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
                 ),
               ),
             if (overview != null) ...<Widget>[
-              EngineCard(availability: overview.sqlite),
+              EngineCard(availability: overview.mariadb),
               const SizedBox(height: 8),
               EngineCard(availability: overview.mariadb),
             ],
@@ -222,7 +222,7 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
                 child: PallSqlEmptyState(
                   icon: Icons.storage_rounded,
                   title: 'No databases yet',
-                  message: 'Create your first SQLite database to run SQL '
+                  message: 'Create your first MariaDB database to run SQL '
                       'entirely offline.',
                 ),
               )
@@ -338,18 +338,13 @@ class _DatabasePageState extends ConsumerState<DatabasePage> {
             const PallSqlSectionHeader(title: 'Engine notes'),
             const PallSqlCard(
               child: Text(
-                'SQLite is an embedded engine: every database is a single file, '
-                'queries run inside the app and everything works offline. It is '
-                'not MySQL or MariaDB, and PALLSQL never labels it as such. '
-                'A compatibility layer answers the MySQL-style metadata '
-                'commands that can be built from real SQLite metadata '
-                '(SHOW DATABASES, SHOW TABLES, DESCRIBE, SHOW CREATE TABLE, '
-                'SHOW INDEX, SELECT VERSION(), SELECT DATABASE()); everything '
-                'else is refused with an explanation instead of a fake result. '
-                'MariaDB needs a native server build plus a data directory '
-                'bootstrap which has not been verified on device, so it stays '
-                'marked unavailable. The SQL editor refuses ATTACH/DETACH so a '
-                'script cannot touch files outside the workspace.',
+                'MariaDB Server runs locally on this phone through the native '
+                'runtime; every schema is a real MariaDB database and the SQL '
+                'editor and terminal use the MariaDB dialect the server speaks. '
+                'No SQLite engine is involved. '
+                'If the runtime is not installed the server is shown as '
+                '"Not installed" with the exact binary path that is missing, '
+                'and no query is answered by a fallback engine.',
                 style: TextStyle(
                   fontSize: 11.5,
                   height: 1.5,

@@ -180,13 +180,86 @@ class NativeBridge {
     return result ?? false;
   }
 
+  // -------------------------------------------------------------------
+  // MariaDB native runtime
+  //
+  // The server binary is exec()ed by Android (see MariaDbProcessManager.kt).
+  // Every method here returns `null` when the native layer is missing, so the
+  // app reports "not installed" instead of pretending the server exists.
+  // -------------------------------------------------------------------
+
+  /// Which MariaDB binaries are packaged for this ABI.
+  Future<Map<String, Object?>?> mariaDbRuntimeInfo() =>
+      _invokeMap('mariadbRuntimeInfo', LogSource.database);
+
+  /// Runs `mariadbd --bootstrap` once to create the system tables.
+  Future<Map<String, Object?>?> mariadbInitialize({
+    required String dataDirectory,
+    required String baseDirectory,
+    required String configPath,
+    bool force = false,
+  }) =>
+      _invokeMap('mariadbInitialize', LogSource.database, <String, Object?>{
+        'dataDirectory': dataDirectory,
+        'baseDirectory': baseDirectory,
+        'configPath': configPath,
+        'force': force,
+      });
+
+  /// Starts `mariadbd` and returns the real pid.
+  Future<Map<String, Object?>?> mariadbStart({
+    required String dataDirectory,
+    required String baseDirectory,
+    required String configPath,
+    required int port,
+    required String host,
+    required String socketPath,
+    required String pidFile,
+    required String errorLogPath,
+    required String bindAddress,
+    required bool skipNetworking,
+  }) =>
+      _invokeMap('mariadbStart', LogSource.database, <String, Object?>{
+        'dataDirectory': dataDirectory,
+        'baseDirectory': baseDirectory,
+        'configPath': configPath,
+        'port': port,
+        'host': host,
+        'socketPath': socketPath,
+        'pidFile': pidFile,
+        'errorLogPath': errorLogPath,
+        'bindAddress': bindAddress,
+        'skipNetworking': skipNetworking,
+      });
+
+  /// Stops the process: `mariadb-admin shutdown` equivalent then a kill.
+  Future<Map<String, Object?>?> mariadbStop({
+    int? pid,
+    int gracefulTimeoutMs = 8000,
+  }) =>
+      _invokeMap('mariadbStop', LogSource.database, <String, Object?>{
+        'pid': pid,
+        'gracefulTimeoutMs': gracefulTimeoutMs,
+      });
+
+  /// Is the process this app started still alive?
+  Future<Map<String, Object?>?> mariadbProcessStatus() =>
+      _invokeMap('mariadbProcessStatus', LogSource.database);
+
+  /// Removes a mariadbd that survived a crash of the app process.
+  Future<Map<String, Object?>?> mariadbKillStale() =>
+      _invokeMap('mariadbKillStale', LogSource.database);
+
   Future<void> dispose() async {
     await _events.close();
   }
 
   Future<Map<String, Object?>?> _invokeMap(
-      String method, LogSource source) async {
-    final Object? result = await _invoke<Object?>(method, null, source);
+    String method,
+    LogSource source, [
+    Map<String, Object?>? arguments,
+  ]) async {
+    final Object? result = await _invoke<Object?>(method, arguments, source);
     if (result is Map) {
       return result.map<String, Object?>(
         (Object? key, Object? value) =>

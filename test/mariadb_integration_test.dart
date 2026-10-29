@@ -229,10 +229,13 @@ void main() {
 
   test('an unknown statement is refused by the server with its own error',
       () async {
-    await expectLater(
-      client.query('SELECT * FROM nowhere.at_all'),
-      throwsA(isA<MysqlServerException>()),
-    );
+    // A batch keeps partial results, so a failing single statement reports the
+    // server error instead of throwing the work away.
+    final MariaDbBatch failed = await client.query('SELECT * FROM nowhere.at_all');
+    expect(failed.error, isNotNull);
+    expect(failed.error?.code, 1146);
+    expect(failed.error?.message.toLowerCase(), contains('doesn\'t exist'));
+
     // The connection is still usable afterwards.
     final MariaDbBatch ping = await client.query('SELECT 42 AS answer');
     expect(ping.last?.rows.single.single, '42');

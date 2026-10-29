@@ -212,9 +212,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               title: 'Database',
               icon: Icons.storage_rounded,
               status: databaseStatus,
-              subtitle: 'SQLite - offline, file based',
+              subtitle: 'MariaDB - native server, local only',
               details: <String>[
-                'engine    ${ref.watch(databaseProvider).valueOrNull?.sqlite.version ?? 'SQLite'}',
+                'engine    MariaDB ${ref.watch(databaseProvider).valueOrNull?.mariadb.version ?? 'not running'}',
                 'databases ${ref.watch(databaseProvider).valueOrNull?.databases.length ?? 0}',
               ],
               actions: <Widget>[

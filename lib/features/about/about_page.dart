@@ -181,13 +181,22 @@ class AboutPage extends ConsumerWidget {
                   note: 'UI framework and language runtime (BSD-3-Clause).',
                 ),
                 const _Credit(
-                  name: 'sqflite / sqflite_common',
-                  note: 'SQLite bindings for Flutter (BSD style license).',
+                  name: 'MariaDB Server',
+                  note: 'The database engine PALLSQL runs locally on the '
+                      'device. GPLv2 licensed; built for Android from the '
+                      'official source tarball, verified by checksum.',
                 ),
                 const _Credit(
-                  name: 'SQLite',
-                  note: 'Embedded SQL engine, public domain, bundled by the '
-                      'platform.',
+                  name: 'MariaDB Connector (protocol implementation)',
+                  note: 'PALLSQL speaks the MariaDB wire protocol directly '
+                      'through its own client, without shipping Connector/C. '
+                      'The protocol itself is documented by MariaDB and is not '
+                      'a licensed library.',
+                ),
+                const _Credit(
+                  name: 'sqflite / sqflite_common',
+                  note: 'Retained only to read legacy SQLite files when the '
+                      'user chooses to migrate them. BSD style license.',
                 ),
                 const _Credit(
                   name: 'flutter_riverpod',
@@ -203,11 +212,7 @@ class AboutPage extends ConsumerWidget {
                   note: 'Not bundled. A PHP runtime you install keeps its own '
                       'license (PHP License 3.01).',
                 ),
-                const _Credit(
-                  name: 'MariaDB',
-                  note: 'Not bundled and never started by PALLSQL. MariaDB '
-                      'server is GPLv2 licensed.',
-                ),
+
                 const SizedBox(height: 10),
                 PallSQLButton(
                   label: 'Open source licenses',

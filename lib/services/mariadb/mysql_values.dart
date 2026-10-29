@@ -290,7 +290,9 @@ String quoteIdentifier(String identifier) {
 /// Quotes a string literal for the rare places where SQL is assembled instead
 /// of bound (no parameters accepted by the statement, e.g. `SHOW GRANTS FOR`).
 String quoteLiteral(String value) {
-  return "'${value.replaceAll(r'\', r'\\').replaceAll("'", r"\'")}'";
+  final String escaped =
+      value.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+  return "'$escaped'";
 }
 
 /// Escapes a value the way the server would, for logging and script export.

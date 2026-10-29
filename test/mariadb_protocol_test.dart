@@ -218,7 +218,7 @@ void main() {
     test('identifiers are quoted with backticks and inner ticks doubled', () {
       expect(quoteIdentifier('users'), '`users`');
       expect(quoteIdentifier('we`ird'), '`we``ird`');
-      expect(quoteIdentifier(''), throwsA(isA<ArgumentError>()));
+      expect(() => quoteIdentifier(''), throwsA(isA<ArgumentError>()));
     });
 
     test('string literals escape quotes and backslashes', () {

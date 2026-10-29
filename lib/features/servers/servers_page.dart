@@ -122,6 +122,25 @@ class _ServersPageState extends ConsumerState<ServersPage> {
     );
   }
 
+  /// Honest one line summary of the MariaDB runtime for the Servers tab.
+  String _mariaDbSubtitle(
+    EngineAvailability? engine,
+    MariaDbStatus? status,
+  ) {
+    final MariaDbStatus? runtime = status;
+    if (runtime == null) {
+      return 'Checking the MariaDB runtime...';
+    }
+    if (runtime.state == MariaDbRuntimeState.notInstalled) {
+      return runtime.runtime.reason;
+    }
+    if (engine?.available == true) {
+      return 'MariaDB ${engine?.version ?? ''} on port ${runtime.port ?? 3306} '
+          '(pid ${runtime.pid ?? '-'})';
+    }
+    return runtime.message;
+  }
+
   @override
   Widget build(BuildContext context) {
     final WebServerSnapshot server = ref.watch(webServerProvider);
@@ -129,8 +148,9 @@ class _ServersPageState extends ConsumerState<ServersPage> {
     final ServiceStatus phpStatus = ref.watch(phpStatusProvider);
     final PhpRuntimeInfo? php = ref.watch(phpRuntimeProvider).valueOrNull;
     final ServiceStatus databaseStatus = ref.watch(databaseStatusProvider);
-    final EngineAvailability? sqlite =
-        ref.watch(databaseProvider).valueOrNull?.sqlite;
+    final DatabaseOverview? database = ref.watch(databaseProvider).valueOrNull;
+    final EngineAvailability? mariadb = database?.mariadb;
+    final MariaDbStatus? mariadbStatus = database?.runtime;
 
     return Scaffold(
       appBar: PallSQLAppBar(
@@ -352,9 +372,9 @@ class _ServersPageState extends ConsumerState<ServersPage> {
           ),
           const SizedBox(height: 18),
           const PallSqlSectionHeader(title: 'Database engine'),
-          if (sqlite != null)
+          if (mariadb != null)
             EngineCard(
-              availability: sqlite,
+              availability: mariadb,
               trailing: ServiceControlButton(
                 label: 'Manage',
                 icon: Icons.arrow_forward_rounded,
@@ -373,8 +393,7 @@ class _ServersPageState extends ConsumerState<ServersPage> {
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
-                    'MariaDB is not available in this build. SQLite is the '
-                    'offline engine; see the Database tab for details.',
+                    _mariaDbSubtitle(mariadb, mariadbStatus),
                     style: TextStyle(
                       fontSize: 11.5,
                       color: PallSqlColors.textSecondary,

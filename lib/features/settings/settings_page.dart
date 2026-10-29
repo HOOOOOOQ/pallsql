@@ -477,8 +477,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               children: <Widget>[
                 PallSqlKeyValue(
                   label: 'Database engine',
-                  value: '${database?.sqlite.engine.label ?? 'SQLite'} '
-                          '${database?.sqlite.version ?? ''}'
+                  value: '${database?.mariadb.engine.label ?? 'MariaDB'} '
+                          '${database?.mariadb.version ?? 'not running'}'
                       .trim(),
                   monospace: true,
                 ),

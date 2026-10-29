@@ -27,11 +27,10 @@ import '../editor/syntax_highlighter.dart';
 ///
 /// The page is the single entry point for ad-hoc SQL. It uses the shared
 /// [SqliteDatabaseRepository] from the bootstrap, so it reuses the very same
-/// SQLite connections as the table browser; no second driver is created.
+/// MariaDB connection as the table browser; no second driver is created.
 ///
-/// MySQL-style metadata statements (`SHOW TABLES`, `DESCRIBE`, ...) are answered
-/// by the compatibility layer from real SQLite metadata; the header always says
-/// which dialect is active.
+/// `SHOW TABLES`, `DESCRIBE`, `SHOW CREATE TABLE`, ... are answered by the
+/// MariaDB server itself, because PALLSQL now speaks the real MariaDB dialect.
 class SqlEditorPage extends ConsumerStatefulWidget {
   const SqlEditorPage({super.key, this.initialDatabase});
 
@@ -111,7 +110,7 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
   Future<void> _createDatabase() async {
     final String? name = await PallSQLDialog.prompt(
       context: context,
-      title: 'New SQLite database',
+      title: 'New MariaDB database',
       label: 'Database name',
       message: 'A file named <name>.db is created in PALLSQL/database.',
       confirmLabel: 'Create',
@@ -224,8 +223,9 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
     }
   }
 
-  /// Cooperative stop: SQLite cannot abort a running statement, so the token is
-  /// checked between statements of a multi statement script.
+  /// Stop issues a real `KILL QUERY` on a second connection (see
+  /// `MariaDbRepository.execute`), so a long statement is interrupted on the
+  /// server instead of only between statements.
   void _stop() {
     _cancelToken?.cancel();
     _snack('Stopping after the current statement...');
@@ -519,8 +519,8 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
         break;
       }
     }
-    final String engine = SqlCompatibility.engineLabel(
-      overview?.sqlite.version ?? '',
+    final String engine = SqlDialect.engineLabel(
+      overview?.mariadb.version ?? '',
     );
     final double fontSize = ref.watch(settingsProvider).editorFontSize;
 
@@ -555,7 +555,7 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
             title: 'Database',
             subtitle: engine,
             trailing: PallSQLStatusBadge(
-              label: 'SQLite dialect',
+              label: 'MariaDB dialect',
               icon: Icons.memory_rounded,
             ),
           ),
@@ -919,7 +919,7 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
           icon: Icons.play_circle_outline_rounded,
           title: _database == null ? 'Pick a database' : 'Ready to run',
           message: _database == null
-              ? 'Create or select a SQLite database to start writing SQL.'
+              ? 'Create or select a MariaDB database to start writing SQL.'
               : 'Write a statement above and press Execute.',
         ),
       );
@@ -1239,7 +1239,7 @@ class _DatabasePicker extends StatelessWidget {
             const PallSqlEmptyState(
               icon: Icons.storage_rounded,
               title: 'No databases yet',
-              message: 'Create a SQLite database to run SQL offline. The file '
+              message: 'Create a MariaDB database to run SQL. The schema '
                   'lives in PALLSQL/database and survives restarts.',
             ),
             PallSQLButton(

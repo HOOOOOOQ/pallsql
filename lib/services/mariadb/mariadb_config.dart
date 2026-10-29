@@ -1,0 +1,310 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+
+import '../../core/utils/validators.dart';
+
+/// Editable MariaDB server configuration (`PALLSQL/config/server/mariadb.cnf`).
+///
+/// The defaults are deliberately conservative for a phone: loopback only, a
+/// small buffer pool and utf8mb4. `bindAddress` is never `0.0.0.0` unless the
+/// user explicitly enables LAN access **and** confirms it.
+class MariaDbConfig {
+  const MariaDbConfig({
+    this.port = 3306,
+    this.bindAddress = '127.0.0.1',
+    this.characterSet = 'utf8mb4',
+    this.collation = 'utf8mb4_unicode_ci',
+    this.maxConnections = 20,
+    this.bufferPoolSizeMb = 32,
+    this.innodbBufferPoolChunkMb = 8,
+    this.innodbLogFileSizeMb = 24,
+    this.socketName = 'pallsql.sock',
+    this.skipNetworking = false,
+    this.allowLan = false,
+    this.user = 'root',
+    this.password = '',
+    this.host = '127.0.0.1',
+  });
+
+  final int port;
+  final String bindAddress;
+  final String characterSet;
+  final String collation;
+  final int maxConnections;
+  final int bufferPoolSizeMb;
+  final int innodbBufferPoolChunkMb;
+  final int innodbLogFileSizeMb;
+  final String socketName;
+
+  /// When true the server only listens on a Unix socket (no TCP at all).
+  final bool skipNetworking;
+
+  /// User opted into exposing the server on the LAN. Requires [bindAddress]
+  /// to be changed explicitly as well.
+  final bool allowLan;
+
+  /// Administrator account PALLSQL creates on first initialisation.
+  final String user;
+
+  /// Password for [user]; never written to a log.
+  final String password;
+
+  /// TCP host the app connects to (loopback by default).
+  final String host;
+
+  bool get isLoopbackOnly =>
+      bindAddress == '127.0.0.1' || bindAddress == 'localhost' || bindAddress == '::1';
+
+  MariaDbConfig copyWith({
+    int? port,
+    String? bindAddress,
+    String? characterSet,
+    String? collation,
+    int? maxConnections,
+    int? bufferPoolSizeMb,
+    int? innodbBufferPoolChunkMb,
+    int? innodbLogFileSizeMb,
+    String? socketName,
+    bool? skipNetworking,
+    bool? allowLan,
+    String? user,
+    String? password,
+    String? host,
+  }) {
+    return MariaDbConfig(
+      port: port ?? this.port,
+      bindAddress: bindAddress ?? this.bindAddress,
+      characterSet: characterSet ?? this.characterSet,
+      collation: collation ?? this.collation,
+      maxConnections: maxConnections ?? this.maxConnections,
+      bufferPoolSizeMb: bufferPoolSizeMb ?? this.bufferPoolSizeMb,
+      innodbBufferPoolChunkMb:
+          innodbBufferPoolChunkMb ?? this.innodbBufferPoolChunkMb,
+      innodbLogFileSizeMb: innodbLogFileSizeMb ?? this.innodbLogFileSizeMb,
+      socketName: socketName ?? this.socketName,
+      skipNetworking: skipNetworking ?? this.skipNetworking,
+      allowLan: allowLan ?? this.allowLan,
+      user: user ?? this.user,
+      password: password ?? this.password,
+      host: host ?? this.host,
+    );
+  }
+
+  /// Validation shared by the Settings screen and the service manager.
+  List<String> validate() {
+    final List<String> problems = <String>[];
+    final String? portError = Validators.portError(port, allowPrivileged: true);
+    if (portError != null) {
+      problems.add('Port: $portError');
+    }
+    if (bindAddress.trim().isEmpty) {
+      problems.add('Bind address must not be empty');
+    }
+    if (!isLoopbackOnly && !allowLan) {
+      problems.add(
+        'Binding to $bindAddress exposes MariaDB to the network. '
+        'Enable "Share on LAN" in Settings first.',
+      );
+    }
+    if (maxConnections < 1 || maxConnections > 500) {
+      problems.add('max_connections must be between 1 and 500');
+    }
+    if (bufferPoolSizeMb < 8) {
+      problems.add('InnoDB buffer pool must be at least 8 MB');
+    }
+    if (bufferPoolSizeMb > 1024) {
+      problems.add('InnoDB buffer pool above 1 GB is not safe on a phone');
+    }
+    if (innodbLogFileSizeMb < 8) {
+      problems.add('InnoDB log file size must be at least 8 MB');
+    }
+    if (characterSet.trim().isEmpty) {
+      problems.add('Character set must not be empty');
+    }
+    if (collation.trim().isEmpty) {
+      problems.add('Collation must not be empty');
+    }
+    if (user.trim().isEmpty) {
+      problems.add('Administrator user must not be empty');
+    }
+    if (socketName.contains('/')) {
+      problems.add('Socket name must be a file name, not a path');
+    }
+    return problems;
+  }
+
+  /// The `my.cnf` content written to `config/server/mariadb.cnf`.
+  ///
+  /// `skip-networking` is used when the user picks socket only; otherwise the
+  /// server binds exactly one address.
+  String toCnf({
+    required String dataDirectory,
+    required String baseDirectory,
+    String? socketPath,
+    String? errorLogPath,
+    String? pidFile,
+  }) {
+    final StringBuffer buffer = StringBuffer()
+      ..writeln('# Generated by PALLSQL - edit in Settings, not by hand unless')
+      ..writeln('# you know what you are doing.')
+      ..writeln('[mysqld]')
+      ..writeln('basedir = $baseDirectory')
+      ..writeln('datadir = $dataDirectory')
+      ..writeln('port = $port')
+      ..writeln('character-set-server = $characterSet')
+      ..writeln('collation-server = $collation')
+      ..writeln('max_connections = $maxConnections')
+      ..writeln('innodb_buffer_pool_size = ${bufferPoolSizeMb}M')
+      ..writeln('innodb_buffer_pool_chunk_size = ${innodbBufferPoolChunkMb}M')
+      ..writeln('innodb_log_file_size = ${innodbLogFileSizeMb}M')
+      ..writeln('innodb_flush_method = fsync')
+      ..writeln('skip-name-resolve')
+      ..writeln('skip-host-cache')
+      ..writeln('performance_schema = OFF')
+      ..writeln('default-storage-engine = InnoDB')
+      ..writeln('local-infile = 0')
+      ..writeln('secure-file-priv = NULL');
+    if (skipNetworking) {
+      buffer.writeln('skip-networking');
+    } else {
+      buffer
+        ..writeln('bind-address = $bindAddress')
+        ..writeln('skip-networking = 0');
+    }
+    if (socketPath != null && socketPath.isNotEmpty) {
+      buffer.writeln('socket = $socketPath');
+    }
+    if (errorLogPath != null && errorLogPath.isNotEmpty) {
+      buffer
+        ..writeln('log-error = $errorLogPath')
+        ..writeln('slow_query_log = 0');
+    }
+    if (pidFile != null && pidFile.isNotEmpty) {
+      buffer.writeln('pid-file = $pidFile');
+    }
+    return buffer.toString();
+  }
+
+  Map<String, Object?> toJson({bool includePassword = true}) =>
+      <String, Object?>{
+        'port': port,
+        'bindAddress': bindAddress,
+        'characterSet': characterSet,
+        'collation': collation,
+        'maxConnections': maxConnections,
+        'bufferPoolSizeMb': bufferPoolSizeMb,
+        'innodbBufferPoolChunkMb': innodbBufferPoolChunkMb,
+        'innodbLogFileSizeMb': innodbLogFileSizeMb,
+        'socketName': socketName,
+        'skipNetworking': skipNetworking,
+        'allowLan': allowLan,
+        'user': user,
+        'host': host,
+        if (includePassword) 'password': password,
+      };
+
+  static MariaDbConfig fromJson(Map<String, Object?> json) {
+    int intOf(String key, int fallback) =>
+        (json[key] as num?)?.toInt() ?? fallback;
+    String stringOf(String key, String fallback) =>
+        json[key]?.toString() ?? fallback;
+    bool boolOf(String key, bool fallback) {
+      final Object? value = json[key];
+      return value is bool ? value : fallback;
+    }
+
+    return MariaDbConfig(
+      port: intOf('port', 3306),
+      bindAddress: stringOf('bindAddress', '127.0.0.1'),
+      characterSet: stringOf('characterSet', 'utf8mb4'),
+      collation: stringOf('collation', 'utf8mb4_unicode_ci'),
+      maxConnections: intOf('maxConnections', 20),
+      bufferPoolSizeMb: intOf('bufferPoolSizeMb', 32),
+      innodbBufferPoolChunkMb: intOf('innodbBufferPoolChunkMb', 8),
+      innodbLogFileSizeMb: intOf('innodbLogFileSizeMb', 24),
+      socketName: stringOf('socketName', 'pallsql.sock'),
+      skipNetworking: boolOf('skipNetworking', false),
+      allowLan: boolOf('allowLan', false),
+      user: stringOf('user', 'root'),
+      password: stringOf('password', ''),
+      host: stringOf('host', '127.0.0.1'),
+    );
+  }
+
+  static const MariaDbConfig defaults = MariaDbConfig();
+}
+
+/// Reads and writes `config/server/mariadb.cnf` and `config/server/mariadb.json`.
+///
+/// The JSON file holds the app side settings (including the password) and is
+/// created with owner read/write permissions only. The password never goes into
+/// the `.cnf`, the logs or the UI.
+class MariaDbConfigStore {
+  MariaDbConfigStore({required this.directory});
+
+  final Directory directory;
+
+  File get jsonFile => File(p.join(directory.path, 'mariadb.json'));
+
+  File get cnfFile => File(p.join(directory.path, 'mariadb.cnf'));
+
+  Future<MariaDbConfig> load() async {
+    if (!await jsonFile.exists()) {
+      return MariaDbConfig.defaults;
+    }
+    try {
+      final Object? decoded = jsonDecode(await jsonFile.readAsString());
+      if (decoded is Map) {
+        return MariaDbConfig.fromJson(
+          decoded.map((Object? key, Object? value) =>
+              MapEntry<String, Object?>('$key', value)),
+        );
+      }
+    } on Object {
+      // A corrupted settings file must not stop the app from starting.
+    }
+    return MariaDbConfig.defaults;
+  }
+
+  Future<File> save(MariaDbConfig config) async {
+    await directory.create(recursive: true);
+    final File file = jsonFile;
+    await file.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(config.toJson()),
+      flush: true,
+    );
+    // Best effort: only the app user may read the credentials.
+    try {
+      await Process.run('chmod', <String>['600', file.path]);
+    } on Object {
+      // Android storage often ignores chmod; the file still lives in app data.
+    }
+    return file;
+  }
+
+  /// Writes the generated `mariadb.cnf` used by the server process.
+  Future<File> writeCnf({
+    required MariaDbConfig config,
+    required String dataDirectory,
+    required String baseDirectory,
+    String? socketPath,
+    String? errorLogPath,
+    String? pidFile,
+  }) async {
+    await directory.create(recursive: true);
+    final File file = cnfFile;
+    await file.writeAsString(
+      config.toCnf(
+        dataDirectory: dataDirectory,
+        baseDirectory: baseDirectory,
+        socketPath: socketPath,
+        errorLogPath: errorLogPath,
+        pidFile: pidFile,
+      ),
+      flush: true,
+    );
+    return file;
+  }
+}

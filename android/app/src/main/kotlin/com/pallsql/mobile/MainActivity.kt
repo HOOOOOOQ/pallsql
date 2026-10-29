@@ -32,6 +32,9 @@ class MainActivity : FlutterActivity() {
     private var pendingImportResult: MethodChannel.Result? = null
     private var pendingImportDirectory: String? = null
 
+    /** Created lazily so a build without the runtime still starts. */
+    private val mariaDb: MariaDbProcessManager by lazy { MariaDbProcessManager(this) }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
@@ -52,8 +55,64 @@ class MainActivity : FlutterActivity() {
             "pickFile" -> pickFile(call, result)
             "shareFile" -> shareFile(call, result)
             "openUrl" -> openUrl(call, result)
+
+            // MariaDB native runtime. Every call runs on a worker thread because
+            // process start/stop blocks, and the UI must stay responsive.
+            "mariadbRuntimeInfo" ->
+                runOffThread(result) { mariaDb.runtimeInfo() }
+            "mariadbInitialize" ->
+                runOffThread(result) {
+                    mariaDb.initialize(
+                        requestedDataDir = call.argument<String>("dataDirectory"),
+                        baseDirectory = call.argument<String>("baseDirectory"),
+                        force = call.argument<Boolean>("force") == true,
+                    )
+                }
+            "mariadbStart" ->
+                runOffThread(result) {
+                    mariaDb.start(
+                        requestedDataDir = call.argument<String>("dataDirectory"),
+                        baseDirectory = call.argument<String>("baseDirectory"),
+                        configPath = call.argument<String>("configPath"),
+                        port = call.argument<Int>("port") ?: 3306,
+                        bindAddress = call.argument<String>("bindAddress")
+                            ?: "127.0.0.1",
+                        socketPath = call.argument<String>("socketPath"),
+                        pidFile = call.argument<String>("pidFile"),
+                        errorLogPath = call.argument<String>("errorLogPath"),
+                        skipNetworking = call.argument<Boolean>("skipNetworking") == true,
+                    )
+                }
+            "mariadbStop" ->
+                runOffThread(result) {
+                    mariaDb.stop(
+                        requestedPid = call.argument<Int>("pid"),
+                        gracefulTimeoutMs = call.argument<Int>("gracefulTimeoutMs")
+                            ?: 8000,
+                    )
+                }
+            "mariadbProcessStatus" ->
+                runOffThread(result) { mariaDb.processStatus() }
+            "mariadbKillStale" ->
+                runOffThread(result) { mariaDb.killStale() }
+
             else -> result.notImplemented()
         }
+    }
+
+    /** Runs [block] on a background thread and returns its map to Flutter. */
+    private fun runOffThread(
+        result: MethodChannel.Result,
+        block: () -> Map<String, Any?>,
+    ) {
+        Thread {
+            try {
+                val value = block()
+                runOnUiThread { result.success(value) }
+            } catch (error: Exception) {
+                runOnUiThread { result.error("mariadb_native", error.message, null) }
+            }
+        }.start()
     }
 
     private fun deviceInfo(): Map<String, Any?> {
