@@ -16,6 +16,7 @@ import '../../widgets/pallsql_dialogs.dart';
 import '../../widgets/query_result_view.dart';
 import '../../widgets/service_control_button.dart';
 import '../editor/syntax_highlighter.dart';
+import 'sql_editor_page.dart';
 
 /// Table browser and SQL editor for a single SQLite database.
 class DatabaseDetailPage extends ConsumerStatefulWidget {
@@ -140,6 +141,7 @@ class _DatabaseDetailPageState extends ConsumerState<DatabaseDetailPage> {
         _result = result;
         _loading = false;
       });
+      ref.read(queryHistoryProvider.notifier).refresh();
       if (result.error != null) {
         _showError(result.error!);
       } else {
@@ -149,7 +151,11 @@ class _DatabaseDetailPageState extends ConsumerState<DatabaseDetailPage> {
       if (!mounted) {
         return;
       }
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _result = QueryResult.failure(failure.combined);
+      });
+      ref.read(queryHistoryProvider.notifier).refresh();
       _showError(failure.combined);
     }
   }
@@ -435,6 +441,7 @@ class _DatabaseDetailPageState extends ConsumerState<DatabaseDetailPage> {
       _result = result;
       _loading = false;
     });
+    ref.read(queryHistoryProvider.notifier).refresh();
     await _refreshStructure();
     if (!mounted) {
       return;
@@ -454,6 +461,16 @@ class _DatabaseDetailPageState extends ConsumerState<DatabaseDetailPage> {
         subtitle: 'SQLite database',
         showBack: true,
         actions: <Widget>[
+          IconButton(
+            tooltip: 'Open SQL editor',
+            icon: const Icon(Icons.terminal_rounded, size: 19),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (BuildContext context) =>
+                    SqlEditorPage(initialDatabase: widget.databaseName),
+              ),
+            ),
+          ),
           IconButton(
             tooltip: 'Export SQL',
             icon: const Icon(Icons.ios_share_rounded, size: 19),

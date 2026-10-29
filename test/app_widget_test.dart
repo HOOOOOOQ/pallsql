@@ -7,6 +7,7 @@ import 'package:pallsql/app.dart';
 import 'package:pallsql/core/theme/pallsql_theme.dart';
 import 'package:pallsql/features/dashboard/dashboard_page.dart';
 import 'package:pallsql/features/database/database_page.dart';
+import 'package:pallsql/features/database/sql_editor_page.dart';
 import 'package:pallsql/features/files/files_page.dart';
 import 'package:pallsql/features/servers/servers_page.dart';
 import 'package:pallsql/features/settings/settings_page.dart';
@@ -164,6 +165,7 @@ void main() {
       'database': const DatabasePage(),
       'files': const FilesPage(),
       'settings': const SettingsPage(),
+      'sql editor': const SqlEditorPage(),
     };
 
     for (final MapEntry<String, Widget> entry in screens.entries) {

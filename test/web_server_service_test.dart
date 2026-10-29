@@ -159,18 +159,104 @@ void main() {
     expect(body, isEmpty);
   });
 
-  test('supports ETag revalidation', () async {
+  test('answers 304 for an asset when the validator matches', () async {
     final HttpClientResponse first =
-        await get('http://127.0.0.1:$port/index.html');
+        await get('http://127.0.0.1:$port/style.css');
     await first.drain<void>();
+    expect(first.statusCode, 200);
     final String? etag = first.headers.value('etag');
     expect(etag, isNotNull);
     final HttpClientResponse second = await get(
-      'http://127.0.0.1:$port/index.html',
+      'http://127.0.0.1:$port/style.css',
       headers: <String, String>{'if-none-match': etag!},
     );
     expect(second.statusCode, 304);
     await second.drain<void>();
+  });
+
+  test('a cached validator never hides the HTML document', () async {
+    final HttpClientResponse first = await get('http://127.0.0.1:$port/');
+    final String body = await utf8.decodeStream(first);
+    expect(first.statusCode, 200);
+    expect(body, contains('<h1>home</h1>'));
+    expect(first.headers.value('cache-control'), 'no-store');
+    expect(first.headers.value('etag'), isNull);
+
+    // A browser revalidating with the date of a previous load must still get
+    // the document, not an empty 304.
+    final HttpClientResponse second = await get(
+      'http://127.0.0.1:$port/',
+      headers: <String, String>{
+        'if-modified-since': HttpDate.format(DateTime.now().toUtc()),
+      },
+    );
+    expect(second.statusCode, 200);
+    expect(await utf8.decodeStream(second), contains('<h1>home</h1>'));
+  });
+
+  test('a changed asset is never reported as not modified', () async {
+    final HttpClientResponse first =
+        await get('http://127.0.0.1:$port/style.css');
+    await first.drain<void>();
+    final String etag = first.headers.value('etag')!;
+
+    await File('${root.path}/style.css')
+        .writeAsString('body { color: blue; }');
+
+    final HttpClientResponse byTag = await get(
+      'http://127.0.0.1:$port/style.css',
+      headers: <String, String>{'if-none-match': etag},
+    );
+    expect(byTag.statusCode, 200);
+    expect(await utf8.decodeStream(byTag), contains('blue'));
+  });
+
+  test('ignores a validator that does not belong to the file', () async {
+    final HttpClientResponse response = await get(
+      'http://127.0.0.1:$port/style.css',
+      headers: <String, String>{'if-none-match': '"not-a-real-tag"'},
+    );
+    expect(response.statusCode, 200);
+    expect(await utf8.decodeStream(response), contains('color'));
+  });
+
+  test('honours if-modified-since only when the file is older', () async {
+    final HttpClientResponse stale = await get(
+      'http://127.0.0.1:$port/style.css',
+      headers: <String, String>{
+        'if-modified-since': HttpDate.format(DateTime.utc(2020)),
+      },
+    );
+    expect(stale.statusCode, 200);
+    await stale.drain<void>();
+
+    final HttpClientResponse fresh = await get(
+      'http://127.0.0.1:$port/style.css',
+      headers: <String, String>{
+        'if-modified-since': HttpDate.format(DateTime.utc(2100)),
+      },
+    );
+    expect(fresh.statusCode, 304);
+    await fresh.drain<void>();
+  });
+
+  test('declares the exact body length for the document', () async {
+    final HttpClientResponse response = await get('http://127.0.0.1:$port/');
+    final List<int> bytes = await response.fold<List<int>>(
+      <int>[],
+      (List<int> previous, List<int> chunk) => previous..addAll(chunk),
+    );
+    expect(response.contentLength, bytes.length);
+    expect(utf8.decode(bytes), contains('<h1>home</h1>'));
+  });
+
+  test('explains a missing landing page instead of an empty 200', () async {
+    await File('${root.path}/index.html').delete();
+    final HttpClientResponse response = await get('http://127.0.0.1:$port/');
+    expect(response.statusCode, 404);
+    final String body = await utf8.decodeStream(response);
+    expect(body, contains('index.html'));
+    expect(body, isNot(isEmpty));
   });
 
   test('never serves PHP sources and answers 501 without a runtime', () async {

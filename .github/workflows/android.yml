@@ -61,7 +61,37 @@ jobs:
       - name: Verify formatting
         run: |
           set -o pipefail
-          dart format --output=none --set-exit-if-changed lib test 2>&1 | tee /tmp/format.log
+          dart format --output=none --set-exit-if-changed . 2>&1 | tee /tmp/format.log
+
+      # When the formatter disagrees, publish the canonical files so the fix can
+      # be applied exactly instead of guessed.
+      - name: Collect formatter output
+        if: failure()
+        run: |
+          set -euo pipefail
+          [ -f /tmp/format.log ] || exit 0
+          grep -oE '^Changed [^ ]+' /tmp/format.log | sed 's/^Changed //' > /tmp/changed.txt || true
+          if [ ! -s /tmp/changed.txt ]; then
+            echo "No formatting drift detected."
+            exit 0
+          fi
+          dart format --output=write . > /dev/null 2>&1 || true
+          mkdir -p /tmp/formatted
+          while read -r file; do
+            mkdir -p "/tmp/formatted/$(dirname "$file")"
+            cp "$file" "/tmp/formatted/$file"
+          done < /tmp/changed.txt
+          echo "Collected $(wc -l < /tmp/changed.txt) formatted file(s)."
+          cat /tmp/changed.txt
+
+      - name: Upload formatter output
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PALLSQL-formatted-src
+          path: /tmp/formatted
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Publish analyzer errors
         if: failure()
@@ -94,6 +124,7 @@ jobs:
             /tmp/analyze.log
             /tmp/test.log
             /tmp/format.log
+            /tmp/changed.txt
             pubspec.lock
           if-no-files-found: ignore
           retention-days: 7

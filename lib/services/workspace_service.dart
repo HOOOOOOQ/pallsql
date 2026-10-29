@@ -147,28 +147,46 @@ class Workspace {
     return workspace;
   }
 
+  /// Landing page written once, when `htdocs/index.html` does not exist yet.
+  ///
+  /// It is never overwritten: a user who edits their landing page keeps their
+  /// edits across app restarts and upgrades.
   static const String _defaultIndexHtml = '''
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PALLSQL local server</title>
+  <title>PALLSQL Local Server</title>
   <style>
     :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
     body {
       margin: 0; min-height: 100vh; display: grid; place-items: center;
-      background: #050706; color: #f1f7f2;
-      font: 16px/1.5 -apple-system, system-ui, sans-serif;
+      background: #050706; color: #f1f7f2; padding: 1.25rem;
+      font: 16px/1.6 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
     }
-    main { max-width: 34rem; padding: 2rem; }
-    h1 { color: #9bff3d; font-size: 1.6rem; letter-spacing: .08em; }
-    code { color: #9bff3d; }
-    p { color: #93a197; }
+    main {
+      width: 100%; max-width: 34rem; padding: 1.75rem;
+      background: #0e1411; border: 1px solid #243129; border-radius: 16px;
+    }
     .badge {
-      display: inline-block; padding: .25rem .6rem; border-radius: 999px;
-      background: #16201a; color: #9bff3d; font-size: .75rem;
-      letter-spacing: .12em; text-transform: uppercase;
+      display: inline-block; padding: .25rem .65rem; border-radius: 999px;
+      background: #16201a; color: #9bff3d; font-size: .72rem;
+      letter-spacing: .14em; text-transform: uppercase;
+    }
+    h1 { color: #9bff3d; font-size: 1.45rem; margin: 1rem 0 .5rem; }
+    p { color: #93a197; margin: 0 0 .85rem; }
+    code {
+      color: #9bff3d; background: #101a14; padding: .1rem .35rem;
+      border-radius: 5px; font-size: .9em;
+    }
+    ul { margin: 0; padding-left: 1.1rem; color: #93a197; }
+    li { margin-bottom: .35rem; }
+    .status { margin-top: 1.25rem; font-size: .82rem; color: #5d6a61; }
+    @media (max-width: 420px) {
+      main { padding: 1.25rem; }
+      h1 { font-size: 1.25rem; }
     }
   </style>
 </head>
@@ -176,10 +194,21 @@ class Workspace {
   <main>
     <span class="badge">PALLSQL</span>
     <h1>Your local server is running</h1>
-    <p>This page is served from <code>PALLSQL/htdocs/index.html</code> by the
-    built in PALLSQL HTTP server. Edit it from the Files tab and reload.</p>
-    <p>Static HTML, CSS, JavaScript and images work offline. PHP scripts return
-    HTTP 501 until a PHP runtime is installed.</p>
+    <p>
+      This page is served from the local file
+      <code>PALLSQL/htdocs/index.html</code> by the built-in PALLSQL HTTP
+      server. Nothing here comes from the internet.
+    </p>
+    <p>Everything below works offline, entirely on this device:</p>
+    <ul>
+      <li>Static <code>HTML</code>, <code>CSS</code>, <code>JavaScript</code></li>
+      <li>Images, fonts and other assets</li>
+      <li>SQLite databases and the SQL editor inside the app</li>
+    </ul>
+    <p class="status">
+      PHP scripts answer HTTP 501 until a PHP runtime is installed, and MariaDB
+      is not bundled. Static sites work today.
+    </p>
   </main>
 </body>
 </html>

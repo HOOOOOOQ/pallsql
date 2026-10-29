@@ -28,16 +28,34 @@ class dari `provider` package, tidak ada `setState` global.
 
 | Interface | Implementasi UI | Provider |
 | --- | --- | --- |
-| `ServerController` | `WebServerController` | `webServerProvider` |
-| `PhpRuntimeController` | `PhpRuntimeController` | `phpRuntimeProvider`, `phpStatusProvider` |
-| `DatabaseController` | `DatabaseController` | `databaseProvider`, `databaseStatusProvider` |
-| `ProjectController` | `ProjectController` | `projectsProvider`, `activeProjectProvider` |
+| `ServerController` | `WebServerNotifier` | `webServerProvider` |
+| `PhpRuntimeController` | `PhpRuntimeNotifier` | `phpRuntimeProvider`, `phpStatusProvider` |
+| `DatabaseController` | `DatabaseNotifier` | `databaseProvider`, `databaseStatusProvider`, `queryHistoryProvider` |
+| `ProjectController` | `ProjectsNotifier` | `projectsProvider`, `activeProjectProvider` |
 | `FileSystemController` | `FileRepository` | `fileRepositoryProvider` |
 | `LogController` | `LogRepository` | `logRepositoryProvider`, `logEntriesProvider` |
 
 Konvensi: operasi async yang dipicu UI mengembalikan `Future<String?>` dengan
 `null` berarti sukses dan isi string adalah pesan error siap tampil. UI
 menampilkannya lewat `showPallSqlSnack`.
+
+## Halaman fitur
+
+| Folder | Isi |
+| --- | --- |
+| `features/shell` | `HomeShell` + bottom navigation (5 tab) |
+| `features/dashboard` | ringkasan lingkungan, status layanan, quick actions |
+| `features/servers` | kontrol HTTP server, port, LAN |
+| `features/database` | `database_page` (daftar + riwayat), `database_detail_page` (browser tabel), `sql_editor_page` (editor SQL mandiri) |
+| `features/files` | file manager |
+| `features/editor` | `editor_page` (editor file) + syntax highlighter |
+| `features/projects`, `backups`, `logs`, `terminal`, `php`, `settings` | fitur pendukung |
+
+`SqlEditorPage` adalah satu-satunya jalur untuk SQL ad-hoc: pilih database,
+tulis statement, jalankan, lihat hasil/error, dan riwayat. Halaman ini memakai
+`SqliteDatabaseRepository` yang sama dari bootstrap, jadi tidak ada koneksi
+SQLite kedua. Riwayat diekspos lewat `queryHistoryProvider` supaya daftar di tab
+Database dan di editor selalu sinkron.
 
 ## Status layanan
 
@@ -54,6 +72,8 @@ Semua operasi file melewati `PathGuard`:
 - `toRelative()` selalu mengembalikan path dalam workspace
 - server memakai guard yang sama untuk document root, ditambah pengecekan
   symlink (`resolveSymbolicLinksSync`) sebelum file dikirim
+- detail aturan HTTP (panjang respons, ETag/304, 404 untuk index yang hilang)
+  ada di `docs/http-server.md`
 
 ## Native bridge
 
