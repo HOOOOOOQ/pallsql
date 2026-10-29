@@ -212,7 +212,7 @@ class MysqlParam {
   /// cannot parameterise identifiers (those go through [quoteIdentifier]).
   factory MysqlParam.from(Object? value) {
     if (value == null) {
-      return MysqlParam(MysqlType.null, false, (MysqlWriter w) {});
+      return MysqlParam(MysqlType.nullType, false, (MysqlWriter w) {});
     }
     if (value is bool) {
       return MysqlParam(

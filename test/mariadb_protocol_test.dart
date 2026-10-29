@@ -227,7 +227,7 @@ void main() {
     });
 
     test('parameters pick the right wire type', () {
-      expect(MysqlParam.from(null).type, MysqlType.null);
+      expect(MysqlParam.from(null).type, MysqlType.nullType);
       expect(MysqlParam.from(7).type, MysqlType.longLong);
       expect(MysqlParam.from(1.5).type, MysqlType.double);
       expect(MysqlParam.from(true).type, MysqlType.tiny);

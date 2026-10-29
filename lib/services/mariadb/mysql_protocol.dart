@@ -72,7 +72,7 @@ class MysqlType {
   static const int long = 0x03;
   static const int float = 0x04;
   static const int double = 0x05;
-  static const int null = 0x06;
+  static const int nullType = 0x06;
   static const int timestamp = 0x07;
   static const int longLong = 0x08;
   static const int int24 = 0x09;
