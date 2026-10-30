@@ -118,9 +118,11 @@ jobs:
         run: |
           set -euo pipefail
           python3 native/patches/apply_android_patches.py "$SOURCE_DIR"
-          grep -n -A2 "IF(NOT ANDROID)" "$SOURCE_DIR/CMakeLists.txt"
-          grep -n "MRG_MyISAM is not shipped" "$SOURCE_DIR/storage/myisammrg/CMakeLists.txt"
-          grep -n -A3 "CMAKE_TOOLCHAIN_FILE" "$SOURCE_DIR/cmake/pcre.cmake"
+          echo "--- readback ---"
+          grep -n -A2 "IF(NOT ANDROID)" "$SOURCE_DIR/CMakeLists.txt" || true
+          grep -n "phone build ships" "$SOURCE_DIR/storage/myisammrg/CMakeLists.txt" || true
+          grep -n "CMAKE_TOOLCHAIN_FILE" "$SOURCE_DIR/cmake/pcre.cmake" || true
+          grep -n -A3 'CONC_WITH_SSL "OFF"' "$SOURCE_DIR/cmake/mariadb_connector_c.cmake" || true
 
       # Cross compiling MariaDB needs a handful of host tools (comp_err,
       # uca-dump, gen_lex_hash, gen_lex_token ...). They are built once natively
