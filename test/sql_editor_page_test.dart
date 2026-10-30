@@ -65,6 +65,25 @@ void main() {
     }
   }
 
+  /// Taps a button whose handler talks to MariaDB and lets the real socket
+  /// round trip finish.
+  ///
+  /// A widget test runs in a fake async zone, so a query started by a plain
+  /// `tester.tap` never completes - and because [MariaDbClient] serialises
+  /// queries, the stuck statement would block every later one too. Running the
+  /// tap inside `tester.runAsync` keeps the real event loop alive.
+  Future<void> tapAndAwaitDatabase(
+    WidgetTester tester,
+    Finder finder, {
+    Duration wait = const Duration(milliseconds: 600),
+  }) async {
+    await tester.runAsync(() async {
+      await tester.tap(finder);
+      await Future<void>.delayed(wait);
+    });
+    await settle(tester, rounds: 12);
+  }
+
   /// Lets Material snackbars expire so no timer outlives the test.
   Future<void> drainSnackBars(WidgetTester tester) async {
     for (int i = 0; i < 6; i++) {
@@ -128,7 +147,7 @@ void main() {
       'SELECT * FROM users;',
     );
     await tester.pump();
-    await tester.tap(find.text('Execute'));
+    await tapAndAwaitDatabase(tester, find.text('Execute'));
     await waitFor(tester, find.byType(QueryResultView));
 
     expect(find.byType(QueryResultView), findsOneWidget,
@@ -158,8 +177,7 @@ void main() {
       'SELECT * FROM missing_table;',
     );
     await tester.pump();
-    await tester.tap(find.text('Execute'));
-    await settle(tester, rounds: 30);
+    await tapAndAwaitDatabase(tester, find.text('Execute'));
 
     // The error is rendered inside the result card and repeated in a snackbar.
     expect(find.byType(QueryResultView), findsOneWidget);
@@ -192,8 +210,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField), 'SELECT 1 AS one;');
     await tester.pump();
-    await tester.tap(find.text('Execute'));
-    await settle(tester, rounds: 30);
+    await tapAndAwaitDatabase(tester, find.text('Execute'));
 
     final ProviderContainer container = ProviderScope.containerOf(
       tester.element(find.byType(SqlEditorPage)),
@@ -264,8 +281,8 @@ void main() {
       created,
     );
     await tester.pump();
-    await tester.tap(find.text('Create'));
-    await settle(tester, rounds: 30);
+    await tapAndAwaitDatabase(tester, find.text('Create'),
+        wait: const Duration(milliseconds: 900));
 
     expect(find.text('Running against $created'), findsOneWidget);
     final List<String>? names = await tester.runAsync(() async {
