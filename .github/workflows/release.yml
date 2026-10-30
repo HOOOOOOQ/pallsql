@@ -57,8 +57,89 @@ jobs:
       - name: Static analysis
         run: flutter analyze
 
+      # The same real server the CI job uses: the SQL editor, terminal and
+      # repository tests talk to MariaDB, and a release must not be cut from a
+      # tree whose tests could only run in a degraded mode.
+      - name: Start MariaDB for the test suite
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            mariadb-server mariadb-client
+          sudo service mariadb start || sudo systemctl start mariadb || true
+          for attempt in $(seq 1 60); do
+            if sudo mariadb -e "SELECT 1" >/dev/null 2>&1; then
+              echo "MariaDB is up after ${attempt}s"
+              break
+            fi
+            sleep 1
+          done
+          sudo mariadb -e "SELECT VERSION();"
+          sudo mariadb -e "
+            CREATE USER IF NOT EXISTS 'pallsql'@'127.0.0.1' IDENTIFIED BY 'pallsql_ci_pw';
+            CREATE USER IF NOT EXISTS 'pallsql'@'localhost' IDENTIFIED BY 'pallsql_ci_pw';
+            GRANT ALL PRIVILEGES ON *.* TO 'pallsql'@'127.0.0.1' WITH GRANT OPTION;
+            GRANT ALL PRIVILEGES ON *.* TO 'pallsql'@'localhost' WITH GRANT OPTION;
+            FLUSH PRIVILEGES;"
+
       - name: Tests
-        run: flutter test --reporter expanded
+        env:
+          PALLSQL_MARIADB_IT: "1"
+          PALLSQL_MARIADB_HOST: "127.0.0.1"
+          PALLSQL_MARIADB_PORT: "3306"
+          PALLSQL_MARIADB_USER: "pallsql"
+          PALLSQL_MARIADB_PASSWORD: "pallsql_ci_pw"
+        run: |
+          set -o pipefail
+          flutter test --reporter expanded 2>&1 | tee /tmp/test.log
+          if grep -q "SKIPPED: set PALLSQL_MARIADB_IT" /tmp/test.log; then
+            echo "::error::The MariaDB integration suite did not run"
+            exit 1
+          fi
+
+      # A release without the native server would be a MariaDB build in name
+      # only, so the runtime is resolved exactly like the CI job does: newest
+      # successful "MariaDB Android runtime" run on this branch.
+      - name: Fetch the native MariaDB runtime
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          mkdir -p native-runtime
+          repo="${GITHUB_REPOSITORY}"
+          branch="$(git rev-parse --abbrev-ref HEAD)"
+          if [ "$branch" = "HEAD" ]; then branch="${GITHUB_REF_NAME}"; fi
+          runs="$(gh api "repos/${repo}/actions/workflows/mariadb-android.yml/runs?branch=${branch}&status=success&per_page=5" --jq '.workflow_runs[] | "\(.id) \(.head_sha)"' 2>/dev/null || true)"
+          if [ -z "$runs" ]; then
+            echo "::error title=MariaDB runtime missing::No successful native runtime build on ${branch}; refusing to publish an APK without MariaDB."
+            exit 1
+          fi
+          while read -r run_id run_sha; do
+            [ -n "$run_id" ] || continue
+            artifact="$(gh api "repos/${repo}/actions/runs/${run_id}/artifacts" --jq '.artifacts[] | select(.name=="mariadb-runtime-arm64-v8a" and .expired==false) | .id' 2>/dev/null | head -1 || true)"
+            [ -n "$artifact" ] || continue
+            echo "using artifact ${artifact} from run ${run_id} (commit ${run_sha})"
+            if gh api "repos/${repo}/actions/artifacts/${artifact}/zip" > /tmp/mariadb-runtime.zip; then
+              unzip -o -q /tmp/mariadb-runtime.zip -d native-runtime
+              echo "MARIA_DB_SOURCE_RUN=${run_id}" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done <<< "$runs"
+          echo "::error title=MariaDB runtime missing::No usable artifact was found; refusing to publish an APK without MariaDB."
+          exit 1
+
+      - name: Stage the native runtime into the APK
+        run: |
+          set -euo pipefail
+          so="$(find native-runtime -type f -name 'libmariadbd.so' | head -1)"
+          test -n "$so" || { echo "::error::libmariadbd.so is missing from the artifact"; exit 1; }
+          mkdir -p android/app/src/main/jniLibs/arm64-v8a
+          cp "$so" android/app/src/main/jniLibs/arm64-v8a/libmariadbd.so
+          assets="$(find native-runtime -type d -name 'mariadb' | head -1)"
+          test -n "$assets" || { echo "::error::the MariaDB bootstrap assets are missing"; exit 1; }
+          mkdir -p android/app/src/main/assets
+          cp -r "$assets" android/app/src/main/assets/
+          echo "staged libmariadbd.so ($(stat -c%s "$so") bytes) and assets from $assets"
 
       - name: Restore Gradle wrapper when missing
         run: |
@@ -86,6 +167,11 @@ jobs:
           size=$(stat -c%s "$apk")
           echo "APK size: $size bytes"
           test "$size" -ge 1000000 || { echo "::error::APK is implausibly small"; exit 1; }
+          unzip -l "$apk" | grep -q "lib/arm64-v8a/libmariadbd.so" \
+            || { echo "::error::the release APK does not contain libmariadbd.so"; exit 1; }
+          unzip -l "$apk" | grep -q "assets/mariadb/.*\.sql" \
+            || { echo "::error::the release APK does not contain the MariaDB bootstrap assets"; exit 1; }
+          echo "::notice title=MariaDB runtime::packed from run ${MARIA_DB_SOURCE_RUN:-unknown}"
           mkdir -p artifacts
           cp "$apk" artifacts/PALLSQL-${{ steps.ref.outputs.tag }}.apk
           sha256sum artifacts/*.apk > artifacts/SHA256SUMS.txt
