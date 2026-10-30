@@ -167,6 +167,28 @@ jobs:
           )
           print("patched storage/myisammrg/CMakeLists.txt")
 
+          # 3. The bundled PCRE2 is an ExternalProject that only forwards
+          #    CMAKE_C_COMPILER. With the NDK that is the generic `clang`, whose
+          #    default target is the host, so pcre2 was compiled for x86-64 and
+          #    the final link failed with "incompatible with aarch64linux". The
+          #    ExternalProject now receives the same toolchain file and the ABI
+          #    and platform arguments as the outer build.
+          pcre = root / "cmake/pcre.cmake"
+          text = pcre.read_text()
+          compiler_line = '      "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"\n'
+          if compiler_line not in text:
+              raise SystemExit("the pcre2 CMake args changed upstream")
+          text = text.replace(
+              compiler_line,
+              compiler_line
+              + '      "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}"\n'
+              + '      "-DANDROID_ABI=${ANDROID_ABI}"\n'
+              + '      "-DANDROID_PLATFORM=${ANDROID_PLATFORM}"\n',
+              1,
+          )
+          pcre.write_text(text)
+          print("patched cmake/pcre.cmake")
+
           # 3. With the bundled wolfSSL the Connector/C TLS backend is forced to
           #    GnuTLS on every non-Windows system ("that's what debian wants").
           #    PALLSQL ships no Connector/C and talks to the server itself over
