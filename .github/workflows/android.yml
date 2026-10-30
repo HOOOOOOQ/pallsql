@@ -423,7 +423,18 @@ jobs:
             else
               echo "::warning::$apk does not contain libmariadbd.so (no runtime artifact available)"
             fi
-            unzip -l "$apk" | grep -E "assets/flutter_assets/assets/mariadb/" | head -5 || true
+            # The server needs the bootstrap SQL and the error messages at
+            # runtime; without them even a perfectly built binary cannot
+            # initialise a data directory.
+            bootstrap_count=$(unzip -l "$apk" | grep -c "assets/mariadb/.*\.sql" || true)
+            if [ "${bootstrap_count:-0}" -gt 0 ]; then
+              echo "$apk contains ${bootstrap_count} bootstrap SQL file(s) under assets/mariadb/"
+            elif [ -n "${MARIA_DB_SOURCE_RUN:-}" ]; then
+              echo "::error title=MariaDB bootstrap assets missing::$apk has no assets/mariadb/*.sql, the server could not be initialised"
+              exit 1
+            else
+              echo "::warning::$apk has no MariaDB bootstrap assets"
+            fi
           done
           mkdir -p artifacts
           cp "$debug" artifacts/PALLSQL-debug.apk
