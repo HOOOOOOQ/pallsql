@@ -145,7 +145,29 @@ jobs:
               "IF(NOT ANDROID)\n  MYSQL_CHECK_READLINE()\nENDIF()",
           )
 
-          # 2. With the bundled wolfSSL the Connector/C TLS backend is forced to
+          # 2. MRG_MyISAM is declared MANDATORY upstream, so the plugin cannot be
+          #    switched off with a CMake option. PALLSQL ships InnoDB + Aria
+          #    only, and `myrg_static.c` does not compile against this sysroot,
+          #    so the plugin is left out of the build entirely.
+          myrg = root / "storage/myisammrg/CMakeLists.txt"
+          text = myrg.read_text()
+          plugin = (
+              "MYSQL_ADD_PLUGIN(myisammrg ${MYISAMMRG_SOURCES} STORAGE_ENGINE "
+              "MANDATORY RECOMPILE_FOR_EMBEDDED)"
+          )
+          if plugin not in text:
+              raise SystemExit("the myisammrg plugin line changed upstream")
+          myrg.write_text(
+              text.replace(
+                  plugin,
+                  "# PALLSQL Android port: MRG_MyISAM is not shipped on the phone.\n"
+                  "# " + plugin,
+                  1,
+              )
+          )
+          print("patched storage/myisammrg/CMakeLists.txt")
+
+          # 3. With the bundled wolfSSL the Connector/C TLS backend is forced to
           #    GnuTLS on every non-Windows system ("that's what debian wants").
           #    PALLSQL ships no Connector/C and talks to the server itself over
           #    loopback, so the Android build configures the client library
