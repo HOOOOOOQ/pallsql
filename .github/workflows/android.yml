@@ -346,18 +346,24 @@ jobs:
       - name: Stage the native runtime into the APK
         run: |
           set -euo pipefail
-          if [ -f native-runtime/libmariadbd.so ]; then
+          # The artifact keeps the paths it was uploaded with, so the search is
+          # by file name instead of a hard coded layout.
+          so="$(find native-runtime -type f -name 'libmariadbd.so' | head -1)"
+          if [ -n "$so" ]; then
             mkdir -p android/app/src/main/jniLibs/arm64-v8a
-            cp native-runtime/libmariadbd.so android/app/src/main/jniLibs/arm64-v8a/
-            echo "libmariadbd.so staged: $(stat -c%s native-runtime/libmariadbd.so) bytes"
+            cp "$so" android/app/src/main/jniLibs/arm64-v8a/libmariadbd.so
+            echo "libmariadbd.so staged from $so ($(stat -c%s "$so") bytes)"
           else
-            echo "::warning title=MariaDB runtime missing::No libmariadbd.so artifact was found. The APK will report MariaDB as 'Not installed'. Run the 'MariaDB Android runtime' workflow first."
+            echo "::warning title=MariaDB runtime missing::No libmariadbd.so in the downloaded artifact. The APK will report MariaDB as 'Not installed'."
           fi
-          if [ -d native-runtime/mariadb ]; then
+          assets="$(find native-runtime -type d -name 'mariadb' | head -1)"
+          if [ -n "$assets" ]; then
             mkdir -p android/app/src/main/assets
-            cp -r native-runtime/mariadb android/app/src/main/assets/
+            cp -r "$assets" android/app/src/main/assets/
+            echo "assets staged from $assets"
           fi
           find android/app/src/main/jniLibs -name '*.so' -exec file {} \; || true
+          ls -la android/app/src/main/jniLibs/arm64-v8a || true
 
       - name: Restore Gradle wrapper when missing
         run: |
