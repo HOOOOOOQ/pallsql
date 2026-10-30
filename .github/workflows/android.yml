@@ -415,10 +415,15 @@ jobs:
           for apk in "$debug" "$release"; do
             if unzip -l "$apk" | grep -q "lib/arm64-v8a/libmariadbd.so"; then
               echo "$apk contains lib/arm64-v8a/libmariadbd.so"
+            elif [ -n "${MARIA_DB_SOURCE_RUN:-}" ]; then
+              # A runtime artifact was downloaded, so its absence from the APK
+              # is a packaging bug, not a missing prerequisite.
+              echo "::error title=MariaDB runtime not packaged::$apk does not contain libmariadbd.so although run ${MARIA_DB_SOURCE_RUN} provided it"
+              exit 1
             else
-              echo "::warning::$apk does not contain libmariadbd.so (runtime from run ${MARIA_DB_SOURCE_RUN:-none})"
+              echo "::warning::$apk does not contain libmariadbd.so (no runtime artifact available)"
             fi
-            unzip -l "$apk" | grep -E "mariadb/" | head -5 || true
+            unzip -l "$apk" | grep -E "assets/flutter_assets/assets/mariadb/" | head -5 || true
           done
           mkdir -p artifacts
           cp "$debug" artifacts/PALLSQL-debug.apk
