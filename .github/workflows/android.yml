@@ -106,12 +106,11 @@ jobs:
           for file in $(find test -name '*_test.dart' | sort); do
             echo "::group::$file"
             if ! timeout 480 flutter test "$file" --reporter expanded --timeout 120s 2>&1 | tee -a /tmp/test.log | tee "/tmp/$(basename "$file").log"; then
-              echo "::error::Tests failed or timed out: $file"
-              # The 10 annotation slots carry the reason, so the failing test is
-              # visible without downloading the artifact.
-              grep -m10 -E "Expected:|Actual:|Which:|TestFailure|failed|timed out|Error" "/tmp/$(basename "$file").log" | while IFS= read -r line; do
-                echo "::error::$file: $line"
-              done
+              # One annotation can carry 64 KB, so the tail of the failing log
+              # is URL-encoded into a single message: the reason is readable
+              # from the API without downloading the artifact.
+              tail_text="$(tail -n 60 "/tmp/$(basename "$file").log" | sed ':a;N;$!ba;s/%/%25/g; s/\r//g; s/\n/%0A/g')"
+              echo "::error title=Tests failed: $file::$tail_text"
               status=1
             fi
             echo "::endgroup::"
