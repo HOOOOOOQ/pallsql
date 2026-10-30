@@ -430,6 +430,18 @@ jobs:
           cp "$release" artifacts/PALLSQL-release.apk
           sha256sum artifacts/*.apk > artifacts/SHA256SUMS.txt
           cat artifacts/SHA256SUMS.txt
+          # Sizes are surfaced as annotations so they are readable from the API
+          # without downloading the artifact.
+          for apk in "$debug" "$release"; do
+            size=$(stat -c%s "$apk")
+            human=$(numfmt --to=iec --suffix=B "$size")
+            echo "::notice title=APK size::$(basename "$apk") ${human} (${size} bytes)"
+            so_size=$(unzip -l "$apk" | awk '/libmariadbd.so/ {print $1}' | head -1)
+            if [ -n "${so_size:-}" ]; then
+              echo "::notice title=MariaDB runtime in APK::$(basename "$apk") lib/arm64-v8a/libmariadbd.so $(numfmt --to=iec --suffix=B "$so_size")"
+            fi
+          done
+          echo "::notice title=MariaDB runtime source::run ${MARIA_DB_SOURCE_RUN:-none} commit ${MARIA_DB_SOURCE_SHA:-none}"
 
       - name: Publish failure details
         if: failure()
