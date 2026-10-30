@@ -332,6 +332,32 @@ jobs:
           echo "probes missed $missing HAVE_ macros of the single line ones"
           grep -E "define HAVE_(MEMCPY|MEMMOVE|SIGWAIT|UNISTD_H) " "$header" || true
 
+      # The probes are unreliable in this toolchain (see the compile flags
+      # above), and some of them also answer *yes* where Android disagrees. The
+      # generated header is corrected here instead of patching the sources:
+      # bionic has no `uint`/`ushort` typedefs in <sys/types.h>, so HAVE_UINT
+      # would remove MariaDB's own typedefs.
+      - name: Correct the generated feature header
+        run: |
+          set -euo pipefail
+          for header in native/build/include/my_config.h native/build/include/config.h; do
+            [ -f "$header" ] || continue
+            python3 - "$header" <<'PY'
+          import pathlib
+          import re
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          text = path.read_text()
+          for macro in ("HAVE_UINT",):
+              pattern = re.compile(rf"^#define {macro}\b.*$", re.M)
+              text, count = pattern.subn(f"/* #undef {macro} (PALLSQL: bionic has no such typedef) */", text)
+              print(f"{path.name}: {macro} corrected {count} time(s)")
+          path.write_text(text)
+          PY
+          done
+          grep -n "HAVE_UINT" native/build/include/my_config.h || true
+
       # The 10 annotation slots per step let the exact compiler/configure error
       # reach the pull request without downloading the log artifact.
       - name: Build mariadbd
