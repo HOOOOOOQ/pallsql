@@ -304,14 +304,44 @@ jobs:
       # available as an artifact it is unpacked here so the APK really contains
       # libmariadbd.so; without it the app reports MariaDB as "Not installed"
       # instead of pretending the server exists.
-      - name: Unpack the native MariaDB runtime when available
-        continue-on-error: true
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          workflow: mariadb-android.yml
-          name: mariadb-runtime-arm64-v8a
-          path: native-runtime
-          if_no_artifact_found: ignore
+      # The native runtime is built by another workflow, so its artifact is
+      # resolved through the REST API: the newest *successful* run on this
+      # branch. A third party action used to do this, but it looked at runs of
+      # the very same commit - which is still building when this job starts, so
+      # the APK was silently produced without MariaDB.
+      - name: Fetch the native MariaDB runtime
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          mkdir -p native-runtime
+          repo="${GITHUB_REPOSITORY}"
+          branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          runs="$(gh api "repos/${repo}/actions/workflows/mariadb-android.yml/runs?branch=${branch}&status=success&per_page=5" --jq '.workflow_runs[] | "\(.id) \(.head_sha)"' 2>/dev/null || true)"
+          if [ -z "$runs" ]; then
+            echo "::warning::No successful 'MariaDB Android runtime' run on ${branch}. The APK will report MariaDB as 'Not installed'."
+            exit 0
+          fi
+          echo "candidate runs (id sha):"
+          echo "$runs"
+          while read -r run_id run_sha; do
+            [ -n "$run_id" ] || continue
+            artifact="$(gh api "repos/${repo}/actions/runs/${run_id}/artifacts" --jq '.artifacts[] | select(.name=="mariadb-runtime-arm64-v8a" and .expired==false) | .id' 2>/dev/null | head -1 || true)"
+            if [ -z "$artifact" ]; then
+              continue
+            fi
+            echo "using artifact ${artifact} from run ${run_id} (source commit ${run_sha})"
+            if gh api "repos/${repo}/actions/artifacts/${artifact}/zip" > /tmp/mariadb-runtime.zip; then
+              unzip -o -q /tmp/mariadb-runtime.zip -d native-runtime
+              echo "MARIA_DB_SOURCE_RUN=${run_id}" >> "$GITHUB_ENV"
+              echo "MARIA_DB_SOURCE_SHA=${run_sha}" >> "$GITHUB_ENV"
+              find native-runtime -type f | head -20
+              exit 0
+            fi
+            echo "::warning::Downloading artifact ${artifact} failed"
+          done <<< "$runs"
+          echo "::warning::No usable MariaDB runtime artifact was found; the APK ships without the server."
+          exit 0
 
       - name: Stage the native runtime into the APK
         run: |
@@ -374,6 +404,15 @@ jobs:
               echo "::error::$f is smaller than 1 MB, it cannot be a real Flutter APK"
               exit 1
             fi
+          done
+          # Prove that the native server is inside the APK, not just staged.
+          for apk in "$debug" "$release"; do
+            if unzip -l "$apk" | grep -q "lib/arm64-v8a/libmariadbd.so"; then
+              echo "$apk contains lib/arm64-v8a/libmariadbd.so"
+            else
+              echo "::warning::$apk does not contain libmariadbd.so (runtime from run ${MARIA_DB_SOURCE_RUN:-none})"
+            fi
+            unzip -l "$apk" | grep -E "mariadb/" | head -5 || true
           done
           mkdir -p artifacts
           cp "$debug" artifacts/PALLSQL-debug.apk
