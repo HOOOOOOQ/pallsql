@@ -276,16 +276,14 @@ jobs:
 
       # Feature probes that need a linked test binary are the usual trap in a
       # cross build. The reason CMake recorded is printed as an annotation so
-      # the diagnosis does not depend on downloading the log artifact.
+      # the diagnosis does not depend on downloading the log artifact. Every
+      # command is tolerant: a diagnostic step must never fail the build.
       - name: Explain failed feature probes
+        if: always()
         run: |
-          set -euo pipefail
+          set -uo pipefail
           if [ -f native/build/CMakeFiles/CMakeError.log ]; then
-            grep -m2 -B2 -A12 -E "check_function_exists.*(mkstemp|memmove)" \
-              native/build/CMakeFiles/CMakeError.log | head -20 | while IFS= read -r line; do
-                [ -n "$line" ] && echo "::warning::$line"
-              done
-            echo "--- first error recorded by CMake ---"
+            echo "--- why check_function_exists failed ---"
             head -40 native/build/CMakeFiles/CMakeError.log | while IFS= read -r line; do
               [ -n "$line" ] && echo "::warning::$line"
             done
@@ -297,6 +295,7 @@ jobs:
             native/build-configure.log || echo "no probe lines in the configure log"
           echo "--- compile flags ---"
           grep -m1 -A3 "CMAKE_C_FLAGS" native/build/CMakeCache.txt || true
+          exit 0
 
       - name: Record the detected libc features
         run: |
