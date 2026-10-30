@@ -10,14 +10,16 @@ import '../../widgets/pallsql_components.dart';
 /// The order matches [AppBootstrap.create]; the loading screen only ever
 /// advances when a step really finished (the bootstrap calls back as it goes).
 const List<String> startupSteps = <String>[
+  'Preparing workspace',
   'Workspace folders',
   'Configuration',
   'Log buffer',
   'Device information',
   'PHP runtime',
-  'SQLite engine',
+  'MariaDB runtime',
+  'MariaDB server',
   'Project metadata',
-  'Web server',
+  'Environment',
 ];
 
 /// In-app loading screen (distinct from the Android launch window).

@@ -38,7 +38,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage> {
         message: 'PALLSQL terminal - allow-listed commands only, no shell, '
             'no root.\n'
             'Type "help" for the command list, or "sql" to open the SQL '
-            'console against a real SQLite database.',
+            'console against the local MariaDB server.',
       ),
     );
     if (widget.openSqlConsole) {
@@ -114,7 +114,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage> {
       appBar: PallSQLAppBar(
         title: sqlMode ? 'SQL console' : 'Terminal',
         subtitle: sqlMode
-            ? 'SQLite dialect - ${service.currentDatabase ?? 'no database'}'
+            ? 'MariaDB dialect - ${service.currentDatabase ?? 'no database'}'
             : '${service.commands.length} registered commands, no shell',
         showBack: true,
         actions: <Widget>[

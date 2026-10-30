@@ -5,7 +5,7 @@ import '../core/utils/formatters.dart';
 import '../models/database_models.dart';
 import 'pallsql_card.dart';
 
-/// Summary row for a SQLite database file.
+/// Summary row for a MariaDB schema.
 class DatabaseCard extends StatelessWidget {
   const DatabaseCard({
     super.key,
@@ -63,7 +63,7 @@ class DatabaseCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     const PallSqlPill(
-                        label: 'SQLite', icon: Icons.memory_rounded),
+                        label: 'MariaDB', icon: Icons.memory_rounded),
                   ],
                 ),
                 const SizedBox(height: 3),

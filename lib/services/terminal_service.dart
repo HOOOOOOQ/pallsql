@@ -6,6 +6,8 @@ import '../models/database_models.dart';
 import '../models/file_entry.dart';
 import '../models/log_entry.dart';
 import '../models/project.dart';
+import '../repositories/database_repository.dart' show MariaDbRepository;
+import 'mariadb/mariadb_service.dart';
 import 'php_runtime_service.dart';
 import 'web_server_service.dart';
 
@@ -61,7 +63,7 @@ abstract class TerminalApi {
     bool allowDestructive = false,
   });
 
-  /// Creates a real SQLite database file in `PALLSQL/database`.
+  /// Creates a real MariaDB schema on the local server.
   Future<void> createDatabase(String name);
 
   Future<List<Project>> projects();
@@ -71,6 +73,24 @@ abstract class TerminalApi {
   AppSettings get settings;
 
   Future<String> storageSummary();
+
+  // ------------------------------------------------------------------
+  // MariaDB native server
+  // ------------------------------------------------------------------
+
+  /// Snapshot of the native server process and engine availability.
+  MariaDbStatus get mariaDbStatus;
+
+  Future<String> startMariaDb();
+
+  Future<String> stopMariaDb();
+
+  Future<String> restartMariaDb();
+
+  Future<String> initializeMariaDb();
+
+  /// Tail of `logs/mariadb-error.log` (empty when nothing was written yet).
+  Future<String> mariaDbLogTail();
 }
 
 /// A registered, allow-listed command.
@@ -196,7 +216,7 @@ String _pad(String value, int width) {
 ///
 /// Two modes share one input field:
 /// * **shell** - the registered commands below (never a Linux shell);
-/// * **sql** - every line is executed against the selected SQLite database
+/// * **sql** - every line is executed against the selected MariaDB schema
 ///   through [TerminalApi.runSql]. Dot commands (`.tables`, `.use`, ...) and
 ///   `\q` stay inside the console.
 class TerminalService {
@@ -343,7 +363,7 @@ class TerminalService {
           ]);
         }
         return TerminalResult(<TerminalLine>[
-          TerminalLine('Using ${args.first}.db'),
+          TerminalLine('Using schema ${args.first}'),
         ]);
       case 'force':
         final String value = args.isEmpty ? '' : args.first.toLowerCase();
@@ -383,13 +403,13 @@ class TerminalService {
   TerminalResult _sqlHelp() {
     return const TerminalResult(<TerminalLine>[
       TerminalLine('SQL console - statements run through the PALLSQL engine.'),
-      TerminalLine('  <sql>;              run a statement (SQLite dialect)'),
+      TerminalLine('  <sql>;              run a statement (MariaDB dialect)'),
       TerminalLine(
           '  SHOW DATABASES;     translated from real workspace files'),
-      TerminalLine('  SHOW TABLES;        real sqlite_master metadata'),
-      TerminalLine('  DESCRIBE <table>;   real PRAGMA table_info metadata'),
+      TerminalLine('  SHOW TABLES;        answered by MariaDB itself'),
+      TerminalLine('  DESCRIBE <table>;   answered by MariaDB itself'),
       TerminalLine('  SELECT VERSION();   real engine version'),
-      TerminalLine('  .databases          list database files'),
+      TerminalLine('  .databases          list MariaDB schemas'),
       TerminalLine('  .tables             list tables of the current database'),
       TerminalLine('  .use <database>     switch database'),
       TerminalLine('  .read <file.sql>    execute a script from the workspace'),
@@ -418,7 +438,7 @@ class TerminalService {
       ]);
     }
     return TerminalResult(<TerminalLine>[
-      TerminalLine('SQLite databases (${databases.length}):'),
+      TerminalLine('MariaDB databases (${databases.length}):'),
       for (final DatabaseInfo database in databases)
         TerminalLine(
           '  ${database.name.padRight(24)} ${database.sizeBytes} bytes '
@@ -561,7 +581,7 @@ class TerminalService {
                 '  ${command.usage.padRight(34)}${command.description}'),
           const TerminalLine(''),
           const TerminalLine(
-            'Type "sql" for the SQL console (real SQLite statements). '
+            'Type "sql" for the SQL console (real MariaDB statements). '
             'Commands call internal PALLSQL APIs; arbitrary shell commands are '
             'not executed.',
             level: LogLevel.debug,
@@ -572,7 +592,7 @@ class TerminalService {
     TerminalCommand(
       name: 'sql',
       usage: 'sql [database]',
-      description: 'Open the SQL console against a real SQLite database',
+      description: 'Open the SQL console against the MariaDB server',
       run: (TerminalApi api, List<String> args) async {
         final List<DatabaseInfo> databases = await api.databases();
         if (databases.isEmpty) {
@@ -603,12 +623,19 @@ class TerminalService {
             databases.any((DatabaseInfo d) => d.name == _database)) {
           target = _database;
         } else {
-          target = databases.first.name;
+          // Never open the console on `mysql`/`information_schema` by accident.
+          for (final DatabaseInfo database in databases) {
+            if (!MariaDbRepository.systemSchemas.contains(database.name)) {
+              target = database.name;
+              break;
+            }
+          }
+          target ??= databases.first.name;
         }
         _sqlMode = true;
         _database = target;
         return TerminalResult(<TerminalLine>[
-          TerminalLine('SQL console - SQLite dialect, database $target.db'),
+          TerminalLine('SQL console - MariaDB dialect, database $target'),
           const TerminalLine(
             'Statements are executed for real. .help lists console commands, '
             '\\q returns to the PALLSQL shell.',
@@ -635,7 +662,7 @@ class TerminalService {
           ]);
         }
         return TerminalResult(<TerminalLine>[
-          TerminalLine('Selected ${args.first}.db'),
+          TerminalLine('Selected schema ${args.first}'),
         ]);
       },
     ),
@@ -656,7 +683,7 @@ class TerminalService {
     TerminalCommand(
       name: 'desc',
       usage: 'desc <table>',
-      description: 'Describe a table (real SQLite metadata)',
+      description: 'Describe a table with DESCRIBE (MariaDB answers it)',
       run: (TerminalApi api, List<String> args) async {
         final String? database = _database;
         if (args.isEmpty || database == null) {
@@ -881,7 +908,7 @@ class TerminalService {
     TerminalCommand(
       name: 'database',
       usage: 'database list|create <name>|use <name>|tables <name>|status',
-      description: 'Inspect and manage the offline SQLite engine',
+      description: 'Inspect the MariaDB server and its databases',
       run: (TerminalApi api, List<String> args) async {
         final String action = args.isEmpty ? 'list' : args.first.toLowerCase();
         if (action == 'status') {
@@ -890,8 +917,8 @@ class TerminalService {
           return TerminalResult(<TerminalLine>[
             TerminalLine('engine: ${availability.engine.label}'),
             TerminalLine(
-              'dialect: ${availability.engine.label} dialect '
-              '(not MySQL/MariaDB)',
+              'dialect: ${availability.engine.dialect} dialect '
+              '(a real MariaDB server, not SQLite)',
             ),
             TerminalLine(
               'state: ${availability.available ? 'available' : 'unavailable'}',
@@ -917,7 +944,7 @@ class TerminalService {
           return TerminalResult(<TerminalLine>[
             TerminalLine(
               exists
-                  ? 'Created ${args[1]}.db and selected it'
+                  ? 'Created schema ${args[1]} and selected it'
                   : 'Database ${args[1]} was not created',
               level: exists ? LogLevel.info : LogLevel.error,
             ),
@@ -933,7 +960,9 @@ class TerminalService {
           final bool found = await selectDatabase(args[1]);
           return TerminalResult(<TerminalLine>[
             TerminalLine(
-              found ? 'Using ${args[1]}.db' : 'Unknown database: ${args[1]}',
+              found
+                  ? 'Using schema ${args[1]}'
+                  : 'Unknown database: ${args[1]}',
               level: found ? LogLevel.info : LogLevel.error,
             ),
           ]);
@@ -948,7 +977,7 @@ class TerminalService {
           }
           final List<TableInfo> tables = await api.tables(database);
           return TerminalResult(<TerminalLine>[
-            TerminalLine('database: $database.db'),
+            TerminalLine('database: $database'),
             TerminalLine('tables: ${tables.length}'),
             for (final TableInfo table in tables)
               TerminalLine('  ${table.type.padRight(6)} ${table.name}'),
@@ -970,10 +999,87 @@ class TerminalService {
           ]);
         }
         return TerminalResult(<TerminalLine>[
-          TerminalLine('SQLite databases (${databases.length}):'),
+          TerminalLine('MariaDB databases (${databases.length}):'),
           for (final DatabaseInfo info in databases)
-            TerminalLine('  ${info.name.padRight(24)} ${info.sizeBytes} bytes'),
+            TerminalLine(
+              '  ${info.name.padRight(24)} ${info.sizeBytes} bytes '
+              '${info.tableCount == null ? '' : '${info.tableCount} table(s)'}',
+            ),
         ]);
+      },
+    ),
+    TerminalCommand(
+      name: 'mariadb',
+      usage: 'mariadb status|start|stop|restart|version|logs|init',
+      description: 'Control the native MariaDB server process',
+      run: (TerminalApi api, List<String> args) async {
+        final String action =
+            args.isEmpty ? 'status' : args.first.toLowerCase();
+        switch (action) {
+          case 'status':
+            final MariaDbStatus status = api.mariaDbStatus;
+            return TerminalResult(<TerminalLine>[
+              TerminalLine('state: ${status.state.label}'),
+              TerminalLine('message: ${status.message}'),
+              if (status.pid != null) TerminalLine('pid: ${status.pid}'),
+              if (status.port != null) TerminalLine('port: ${status.port}'),
+              if (status.version != null)
+                TerminalLine('version: ${status.version}'),
+              if (status.uptimeSeconds != null)
+                TerminalLine('uptime: ${status.uptimeSeconds}s'),
+              TerminalLine('data directory: ${status.dataDirectory ?? '-'}'),
+              TerminalLine('runtime installed: ${status.runtime.installed}'),
+              if (!status.runtime.installed)
+                TerminalLine(
+                  status.runtime.reason,
+                  level: LogLevel.error,
+                ),
+            ]);
+          case 'start':
+            return TerminalResult(<TerminalLine>[
+              TerminalLine(await api.startMariaDb()),
+            ]);
+          case 'stop':
+            return TerminalResult(<TerminalLine>[
+              TerminalLine(await api.stopMariaDb()),
+            ]);
+          case 'restart':
+            return TerminalResult(<TerminalLine>[
+              TerminalLine(await api.restartMariaDb()),
+            ]);
+          case 'init':
+            return TerminalResult(<TerminalLine>[
+              TerminalLine(await api.initializeMariaDb()),
+            ]);
+          case 'version':
+            final EngineAvailability availability =
+                await api.databaseAvailability();
+            return TerminalResult(<TerminalLine>[
+              TerminalLine(
+                availability.available
+                    ? 'MariaDB ${availability.version ?? 'unknown'}'
+                    : 'MariaDB is not available: '
+                        '${availability.reason ?? 'unknown reason'}',
+                level:
+                    availability.available ? LogLevel.info : LogLevel.warning,
+              ),
+            ]);
+          case 'logs':
+            final String log = await api.mariaDbLogTail();
+            return TerminalResult(<TerminalLine>[
+              for (final String line in log.isEmpty
+                  ? const <String>['(no log yet)']
+                  : log.split('\n'))
+                TerminalLine(line),
+            ]);
+          default:
+            return const TerminalResult(<TerminalLine>[
+              TerminalLine(
+                'Usage: mariadb status|start|stop|restart|init|version|logs',
+                level: LogLevel.warning,
+              ),
+            ]);
+        }
       },
     ),
     TerminalCommand(

@@ -18,7 +18,7 @@ import '../../widgets/service_control_button.dart';
 import '../editor/syntax_highlighter.dart';
 import 'sql_editor_page.dart';
 
-/// Table browser and SQL editor for a single SQLite database.
+/// Table browser and SQL editor for one MariaDB schema.
 class DatabaseDetailPage extends ConsumerStatefulWidget {
   const DatabaseDetailPage({super.key, required this.databaseName});
 
@@ -41,8 +41,7 @@ class _DatabaseDetailPageState extends ConsumerState<DatabaseDetailPage> {
   QueryResult? _result;
   bool _loading = true;
 
-  SqliteDatabaseRepository get _repository =>
-      ref.read(databaseRepositoryProvider);
+  MariaDbRepository get _repository => ref.read(databaseRepositoryProvider);
 
   @override
   void initState() {
@@ -458,7 +457,7 @@ class _DatabaseDetailPageState extends ConsumerState<DatabaseDetailPage> {
     return Scaffold(
       appBar: PallSQLAppBar(
         title: widget.databaseName,
-        subtitle: 'SQLite database',
+        subtitle: 'MariaDB schema',
         showBack: true,
         actions: <Widget>[
           IconButton(

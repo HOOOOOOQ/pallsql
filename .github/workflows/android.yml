@@ -57,10 +57,69 @@ jobs:
           set -o pipefail
           flutter analyze 2>&1 | tee /tmp/analyze.log
 
+      # Real MariaDB server for the client integration suite. The suite talks
+      # to it over TCP with PALLSQL's own protocol implementation, so a broken
+      # handshake, result set or prepared statement fails this job.
+      - name: Start MariaDB for the integration suite
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            mariadb-server mariadb-client
+          sudo service mariadb start || sudo systemctl start mariadb || true
+          for attempt in $(seq 1 60); do
+            if sudo mariadb -e "SELECT 1" >/dev/null 2>&1; then
+              echo "MariaDB is up after ${attempt}s"
+              break
+            fi
+            sleep 1
+          done
+          sudo mariadb -e "SELECT VERSION();"
+          sudo mariadb -e "
+            CREATE DATABASE IF NOT EXISTS pallsql_ci;
+            CREATE USER IF NOT EXISTS 'pallsql'@'127.0.0.1' IDENTIFIED BY 'pallsql_ci_pw';
+            CREATE USER IF NOT EXISTS 'pallsql'@'localhost' IDENTIFIED BY 'pallsql_ci_pw';
+            GRANT ALL PRIVILEGES ON *.* TO 'pallsql'@'127.0.0.1' WITH GRANT OPTION;
+            GRANT ALL PRIVILEGES ON *.* TO 'pallsql'@'localhost' WITH GRANT OPTION;
+            FLUSH PRIVILEGES;"
+          sudo mariadb -e "SELECT user, host, plugin FROM mysql.user WHERE user='pallsql';"
+
       - name: Unit, service and widget tests
+        # A hung widget test must fail the job, never block it for hours.
+        timeout-minutes: 45
+        env:
+          # Turns the real server integration tests on. The guard below fails
+          # the job if the suite silently skipped.
+          PALLSQL_MARIADB_IT: "1"
+          PALLSQL_MARIADB_HOST: "127.0.0.1"
+          PALLSQL_MARIADB_PORT: "3306"
+          PALLSQL_MARIADB_USER: "pallsql"
+          PALLSQL_MARIADB_PASSWORD: "pallsql_ci_pw"
         run: |
           set -o pipefail
-          flutter test --reporter expanded 2>&1 | tee /tmp/test.log
+          : > /tmp/test.log
+          status=0
+          # Each file runs on its own so a stuck widget test is named in the
+          # log instead of hiding behind one giant run. `timeout` and the
+          # per-test limit kill a hang; nothing is skipped and any failure
+          # still fails the job.
+          for file in $(find test -name '*_test.dart' | sort); do
+            echo "::group::$file"
+            if ! timeout 480 flutter test "$file" --reporter expanded --timeout 120s 2>&1 | tee -a /tmp/test.log | tee "/tmp/$(basename "$file").log"; then
+              # One annotation can carry 64 KB, so the tail of the failing log
+              # is URL-encoded into a single message: the reason is readable
+              # from the API without downloading the artifact.
+              tail_text="$(tail -n 60 "/tmp/$(basename "$file").log" | sed ':a;N;$!ba;s/%/%25/g; s/\r//g; s/\n/%0A/g')"
+              echo "::error title=Tests failed: $file::$tail_text"
+              status=1
+            fi
+            echo "::endgroup::"
+          done
+          if grep -q "SKIPPED: set PALLSQL_MARIADB_IT" /tmp/test.log; then
+            echo "::error::The MariaDB integration suite did not run"
+            exit 1
+          fi
+          exit "$status"
 
       # Formatting is verified last so analyzer and test output stay readable.
       - name: Verify formatting
@@ -88,6 +147,37 @@ jobs:
           done < /tmp/changed.txt
           echo "Collected $(wc -l < /tmp/changed.txt) formatted file(s)."
           cat /tmp/changed.txt
+
+      # The patch is also published as annotations: artifacts cannot always be
+      # downloaded from a sandbox, and the diff is small and mechanical.
+      - name: Publish the formatting diff
+        if: failure()
+        run: |
+          set -uo pipefail
+          [ -s /tmp/changed.txt ] || exit 0
+          git diff > /tmp/format.diff || true
+          [ -s /tmp/format.diff ] || exit 0
+          python3 - <<'PY'
+          import pathlib
+
+          text = pathlib.Path("/tmp/format.diff").read_text()
+          chunks, current, size = [], [], 0
+          for line in text.splitlines(True):
+              if size + len(line) > 35000:
+                  chunks.append("".join(current))
+                  current, size = [], 0
+              current.append(line)
+              size += len(line)
+          if current:
+              chunks.append("".join(current))
+          for index, chunk in enumerate(chunks[:8]):
+              encoded = (
+                  chunk.replace("%", "%25")
+                  .replace("\r", "")
+                  .replace("\n", "%0A")
+              )
+              print(f"::error title=format diff {index + 1}/{len(chunks)}::{encoded}")
+          PY
 
       # Commits the canonical formatting back to the branch. If the token
       # cannot push, the exact patch is published as a PR comment so it can be
@@ -210,6 +300,71 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # The native MariaDB runtime is built by `mariadb-android.yml`. When it is
+      # available as an artifact it is unpacked here so the APK really contains
+      # libmariadbd.so; without it the app reports MariaDB as "Not installed"
+      # instead of pretending the server exists.
+      # The native runtime is built by another workflow, so its artifact is
+      # resolved through the REST API: the newest *successful* run on this
+      # branch. A third party action used to do this, but it looked at runs of
+      # the very same commit - which is still building when this job starts, so
+      # the APK was silently produced without MariaDB.
+      - name: Fetch the native MariaDB runtime
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          mkdir -p native-runtime
+          repo="${GITHUB_REPOSITORY}"
+          branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          runs="$(gh api "repos/${repo}/actions/workflows/mariadb-android.yml/runs?branch=${branch}&status=success&per_page=5" --jq '.workflow_runs[] | "\(.id) \(.head_sha)"' 2>/dev/null || true)"
+          if [ -z "$runs" ]; then
+            echo "::warning::No successful 'MariaDB Android runtime' run on ${branch}. The APK will report MariaDB as 'Not installed'."
+            exit 0
+          fi
+          echo "candidate runs (id sha):"
+          echo "$runs"
+          while read -r run_id run_sha; do
+            [ -n "$run_id" ] || continue
+            artifact="$(gh api "repos/${repo}/actions/runs/${run_id}/artifacts" --jq '.artifacts[] | select(.name=="mariadb-runtime-arm64-v8a" and .expired==false) | .id' 2>/dev/null | head -1 || true)"
+            if [ -z "$artifact" ]; then
+              continue
+            fi
+            echo "using artifact ${artifact} from run ${run_id} (source commit ${run_sha})"
+            if gh api "repos/${repo}/actions/artifacts/${artifact}/zip" > /tmp/mariadb-runtime.zip; then
+              unzip -o -q /tmp/mariadb-runtime.zip -d native-runtime
+              echo "MARIA_DB_SOURCE_RUN=${run_id}" >> "$GITHUB_ENV"
+              echo "MARIA_DB_SOURCE_SHA=${run_sha}" >> "$GITHUB_ENV"
+              find native-runtime -type f | head -20
+              exit 0
+            fi
+            echo "::warning::Downloading artifact ${artifact} failed"
+          done <<< "$runs"
+          echo "::warning::No usable MariaDB runtime artifact was found; the APK ships without the server."
+          exit 0
+
+      - name: Stage the native runtime into the APK
+        run: |
+          set -euo pipefail
+          # The artifact keeps the paths it was uploaded with, so the search is
+          # by file name instead of a hard coded layout.
+          so="$(find native-runtime -type f -name 'libmariadbd.so' | head -1)"
+          if [ -n "$so" ]; then
+            mkdir -p android/app/src/main/jniLibs/arm64-v8a
+            cp "$so" android/app/src/main/jniLibs/arm64-v8a/libmariadbd.so
+            echo "libmariadbd.so staged from $so ($(stat -c%s "$so") bytes)"
+          else
+            echo "::warning title=MariaDB runtime missing::No libmariadbd.so in the downloaded artifact. The APK will report MariaDB as 'Not installed'."
+          fi
+          assets="$(find native-runtime -type d -name 'mariadb' | head -1)"
+          if [ -n "$assets" ]; then
+            mkdir -p android/app/src/main/assets
+            cp -r "$assets" android/app/src/main/assets/
+            echo "assets staged from $assets"
+          fi
+          find android/app/src/main/jniLibs -name '*.so' -exec file {} \; || true
+          ls -la android/app/src/main/jniLibs/arm64-v8a || true
+
       - name: Restore Gradle wrapper when missing
         run: |
           set -euo pipefail
@@ -256,11 +411,48 @@ jobs:
               exit 1
             fi
           done
+          # Prove that the native server is inside the APK, not just staged.
+          for apk in "$debug" "$release"; do
+            if unzip -l "$apk" | grep -q "lib/arm64-v8a/libmariadbd.so"; then
+              echo "$apk contains lib/arm64-v8a/libmariadbd.so"
+            elif [ -n "${MARIA_DB_SOURCE_RUN:-}" ]; then
+              # A runtime artifact was downloaded, so its absence from the APK
+              # is a packaging bug, not a missing prerequisite.
+              echo "::error title=MariaDB runtime not packaged::$apk does not contain libmariadbd.so although run ${MARIA_DB_SOURCE_RUN} provided it"
+              exit 1
+            else
+              echo "::warning::$apk does not contain libmariadbd.so (no runtime artifact available)"
+            fi
+            # The server needs the bootstrap SQL and the error messages at
+            # runtime; without them even a perfectly built binary cannot
+            # initialise a data directory.
+            bootstrap_count=$(unzip -l "$apk" | grep -c "assets/mariadb/.*\.sql" || true)
+            if [ "${bootstrap_count:-0}" -gt 0 ]; then
+              echo "$apk contains ${bootstrap_count} bootstrap SQL file(s) under assets/mariadb/"
+            elif [ -n "${MARIA_DB_SOURCE_RUN:-}" ]; then
+              echo "::error title=MariaDB bootstrap assets missing::$apk has no assets/mariadb/*.sql, the server could not be initialised"
+              exit 1
+            else
+              echo "::warning::$apk has no MariaDB bootstrap assets"
+            fi
+          done
           mkdir -p artifacts
           cp "$debug" artifacts/PALLSQL-debug.apk
           cp "$release" artifacts/PALLSQL-release.apk
           sha256sum artifacts/*.apk > artifacts/SHA256SUMS.txt
           cat artifacts/SHA256SUMS.txt
+          # Sizes are surfaced as annotations so they are readable from the API
+          # without downloading the artifact.
+          for apk in "$debug" "$release"; do
+            size=$(stat -c%s "$apk")
+            human=$(numfmt --to=iec --suffix=B "$size")
+            echo "::notice title=APK size::$(basename "$apk") ${human} (${size} bytes)"
+            so_size=$(unzip -l "$apk" | awk '/libmariadbd.so/ {print $1}' | head -1)
+            if [ -n "${so_size:-}" ]; then
+              echo "::notice title=MariaDB runtime in APK::$(basename "$apk") lib/arm64-v8a/libmariadbd.so $(numfmt --to=iec --suffix=B "$so_size")"
+            fi
+          done
+          echo "::notice title=MariaDB runtime source::run ${MARIA_DB_SOURCE_RUN:-none} commit ${MARIA_DB_SOURCE_SHA:-none}"
 
       - name: Publish failure details
         if: failure()

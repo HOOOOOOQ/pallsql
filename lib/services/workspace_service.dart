@@ -226,11 +226,13 @@ class Workspace {
     <ul>
       <li>Static <code>HTML</code>, <code>CSS</code>, <code>JavaScript</code></li>
       <li>Images, fonts and other assets</li>
-      <li>SQLite databases, the SQL editor and the SQL terminal</li>
+      <li>MariaDB schemas, the SQL editor and the SQL terminal</li>
     </ul>
     <p class="status">
-      PHP scripts answer HTTP 501 until a PHP runtime is installed. MariaDB is
-      not bundled. Static sites work today.
+      PHP scripts answer HTTP 501 until a PHP runtime is installed. MariaDB
+      runs from the native runtime shipped in the APK; when that runtime is
+      missing the Database tab reports it as not installed instead of falling
+      back to another engine. Static sites work today.
     </p>
   </main>
 </body>

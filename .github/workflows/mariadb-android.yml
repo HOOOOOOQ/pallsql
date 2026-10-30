@@ -1,0 +1,477 @@
+name: MariaDB Android runtime
+
+# Builds the native MariaDB server for Android with the NDK, validates every
+# produced library, and publishes it as an artifact that the APK job consumes.
+#
+# The build is allowed to fail loudly: PALLSQL must not claim a MariaDB runtime
+# it does not ship. `continue-on-error` is deliberately NOT used, so a broken
+# port shows up as a red job with the exact compiler error in the log.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mariadb_version:
+        description: "MariaDB source version to build"
+        required: false
+        default: "10.11.9"
+  push:
+    branches:
+      - main
+    paths:
+      - "native/**"
+      - ".github/workflows/mariadb-android.yml"
+  pull_request:
+    paths:
+      - "native/**"
+      - ".github/workflows/mariadb-android.yml"
+
+permissions:
+  contents: read
+
+env:
+  MARIADB_VERSION: ${{ github.event.inputs.mariadb_version || '10.11.9' }}
+  # SHA-256 of the source archive. Empty means "not pinned yet": the workflow
+  # then only *records* the observed hash in the build report. Set it to turn
+  # the download into a hard verification that fails on mismatch.
+  MARIADB_SHA256: ""
+  NDK_VERSION: "27.0.12077973"
+  ANDROID_API: "24"
+  TARGET_ABIS: "arm64-v8a"
+
+jobs:
+  build-runtime:
+    name: Build mariadbd for Android
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [arm64-v8a]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # The ubuntu runner already ships the Android SDK; only the NDK is added.
+      # Using the bundled cmdline-tools keeps this step free of third party
+      # actions that can break independently of the build.
+      - name: Install the Android NDK
+        run: |
+          set -euo pipefail
+          sdk="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_SDK_ROOT=$sdk" >> "$GITHUB_ENV"
+          yes | "$sdk/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          # The NDK ships CMake files written for CMake 3.22; the runner image may
+          # carry a much newer CMake whose stricter if() parser rejects them, so
+          # the side-by-side CMake from the Android SDK is used explicitly.
+          "$sdk/cmdline-tools/latest/bin/sdkmanager" --install "ndk;${NDK_VERSION}" "cmake;3.22.1"
+          ls "$sdk/ndk" "$sdk/cmake"
+          {
+            echo "NDK_ROOT=$sdk/ndk/${NDK_VERSION}"
+            echo "CMAKE_BIN=$sdk/cmake/3.22.1/bin/cmake"
+          } >> "$GITHUB_ENV"
+
+      - name: Show the CMake that will be used
+        run: |
+          set -euo pipefail
+          "$CMAKE_BIN" --version
+          echo "cmake=$(command -v cmake) version=$(cmake --version | head -1)"
+
+      - name: Install build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends \
+            bison cmake curl file g++ libgnutls28-dev libncurses5-dev \
+            ninja-build pkg-config wget xz-utils zlib1g-dev
+
+      - name: Download and verify the MariaDB source
+        run: |
+          set -euo pipefail
+          mkdir -p native/src
+          url="https://archive.mariadb.org/mariadb-${MARIADB_VERSION}/source/mariadb-${MARIADB_VERSION}.tar.gz"
+          echo "Downloading $url"
+          curl -fsSL --retry 3 -o /tmp/mariadb.tar.gz "$url"
+          actual="$(sha256sum /tmp/mariadb.tar.gz | cut -d' ' -f1)"
+          echo "sha256=$actual"
+          echo "$actual" > native/src/SOURCE_SHA256.txt
+          if [ -z "${MARIADB_SHA256}" ]; then
+            echo "::warning::MARIADB_SHA256 is not pinned; this run records sha256=$actual in the build report. Pin the value to make the download verifiable."
+          elif [ "$actual" != "$MARIADB_SHA256" ]; then
+            echo "::error::The MariaDB source archive does not match MARIADB_SHA256 (expected $MARIADB_SHA256, got $actual)."
+            exit 1
+          else
+            echo "Source checksum matches the pinned MARIADB_SHA256."
+          fi
+          tar -xzf /tmp/mariadb.tar.gz -C native/src
+          ls native/src
+          # Exported here: every later step (patch, host tools, cross build)
+          # works on the same extracted tree.
+          echo "SOURCE_DIR=$PWD/$(find native/src -maxdepth 1 -type d -name 'mariadb-*' | head -1)" >> "$GITHUB_ENV"
+
+      # The ncurses/readline probe is unconditional in CMakeLists.txt, while
+      # Two platform probes in the extracted source cannot work for a cross
+      # build: the unconditional ncurses probe (`mariadbd` never links readline
+      # and the NDK ships no curses) and Connector/C's GnuTLS default. Both
+      # patches are applied here, recorded in the build report, and never touch
+      # the server code itself.
+      - name: Patch the unportable platform probes
+        run: |
+          set -euo pipefail
+          python3 native/patches/apply_android_patches.py "$SOURCE_DIR"
+          echo "--- readback ---"
+          grep -n -A2 "IF(NOT ANDROID)" "$SOURCE_DIR/CMakeLists.txt" || true
+          grep -n "phone build ships" "$SOURCE_DIR/storage/myisammrg/CMakeLists.txt" || true
+          grep -n "CMAKE_TOOLCHAIN_FILE" "$SOURCE_DIR/cmake/pcre.cmake" || true
+          grep -n -A3 'CONC_WITH_SSL "OFF"' "$SOURCE_DIR/cmake/mariadb_connector_c.cmake" || true
+
+      # Cross compiling MariaDB needs a handful of host tools (comp_err,
+      # uca-dump, gen_lex_hash, gen_lex_token ...). They are built once natively
+      # and exported through import_executables.cmake, exactly as the project
+      # documents, instead of emulating AArch64 binaries.
+      - name: Build the host import tools
+        run: |
+          set -euo pipefail
+          "$CMAKE_BIN" -S "$SOURCE_DIR" -B native/build-host \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWITH_UNIT_TESTS=OFF \
+            2>&1 | tee native/build-host-configure.log || {
+              echo "::error::The native configure step for the host tools failed."
+              grep -m1 -A9 "CMake Error" native/build-host-configure.log | while IFS= read -r line; do
+                [ -n "$line" ] && echo "::error::$line"
+              done
+              exit 1
+            }
+          ninja -C native/build-host import_executables 2>&1 | tee native/build-host.log || {
+            echo "::error::The host import tools could not be built."
+            tail -n 10 native/build-host.log | while IFS= read -r line; do
+              [ -n "$line" ] && echo "::error::$line"
+            done
+            exit 1
+          }
+          test -f native/build-host/import_executables.cmake
+          echo "HOST_IMPORT_EXECUTABLES=$PWD/native/build-host/import_executables.cmake" >> "$GITHUB_ENV"
+
+      # bionic does not pull the POSIX/ctype headers into every translation
+      # unit the way glibc does, so legacy C files (`mysys/get_password.c`,
+      # `mysys/mf_pack.c`) fail with "call to undeclared function".
+      - name: Prepare the Android compile flags
+        run: |
+          set -euo pipefail
+          # bionic does not pull the POSIX/ctype headers into every translation
+          # unit the way glibc does, so legacy C files (`mysys/get_password.c`,
+          # `mysys/mf_pack.c`) fail with "call to undeclared function".
+          # Force including the standard headers is a compile time only fix.
+          cat > native/android-flags.cmake <<'EOF'
+          set(PALLSQL_FORCED_HEADERS
+              ctype.h errno.h pwd.h stdlib.h string.h strings.h
+              sys/types.h sys/time.h time.h unistd.h)
+          foreach(header IN LISTS PALLSQL_FORCED_HEADERS)
+            string(APPEND CMAKE_C_FLAGS " -include ${header}")
+          endforeach()
+          string(APPEND CMAKE_CXX_FLAGS " -include cctype -include cstring")
+          EOF
+          cat native/android-flags.cmake
+
+      # NDK r27's `build/cmake/flags.cmake` uses `IN_LIST`, which needs policy
+      # CMP0057 NEW. MariaDB asks for an older CMake, so the policy is forced on
+      # the command line; the first attempt failed with exactly that error.
+      - name: Configure the cross build
+        run: |
+          set -euo pipefail
+          # `check_function_exists` declares the symbol as `char f(void)`, and
+          # modern clang rejects that redeclaration of a libc function, so every
+          # such probe reports "not found" in this toolchain. The facts below are
+          # the functions bionic really provides at API 24. They are passed as
+          # *cache variables* (not compiler flags) because the CMake logic uses
+          # them to decide which sources to compile at all: without HAVE_ALARM,
+          # `mysys/my_alarm.c` is not built and `my_set_alarm_variable` ends up
+          # undefined at link time. Every entry was added after a real failure.
+          facts=(
+            HAVE_ACCESS HAVE_ALARM HAVE_ASPRINTF HAVE_CLOCK_GETTIME
+            HAVE_FCHMOD HAVE_FCNTL HAVE_FDATASYNC HAVE_FSYNC HAVE_FTRUNCATE
+            HAVE_GETCWD HAVE_GETTIMEOFDAY HAVE_MEMCPY HAVE_MEMMOVE HAVE_MKSTEMP
+            HAVE_READLINK HAVE_REALPATH HAVE_SETLOCALE HAVE_SIGWAIT
+            HAVE_STRCOLL HAVE_STRDUP HAVE_STRNDUP HAVE_TIME HAVE_TIMES
+            HAVE_VASPRINTF
+            HAVE_FCNTL_H HAVE_MEMORY_H HAVE_STRING_H HAVE_STRINGS_H
+            HAVE_SYS_STAT_H HAVE_SYS_TIME_H HAVE_SYS_TYPES_H
+            HAVE_TIME_H HAVE_UNISTD_H
+          )
+          facts_args=()
+          for fact in "${facts[@]}"; do
+            facts_args+=("-D${fact}=1")
+          done
+          "$CMAKE_BIN" -S "$SOURCE_DIR" -B native/build \
+            -G Ninja \
+            "${facts_args[@]}" \
+            -DCMAKE_TOOLCHAIN_FILE="$NDK_ROOT/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM="android-${ANDROID_API}" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=native/install \
+            -DWITH_UNIT_TESTS=OFF \
+            -DWITH_EMBEDDED_SERVER=OFF \
+            -DWITH_MARIABACKUP=OFF \
+            -DWITH_MROONGA=OFF \
+            -DWITH_WSREP=OFF \
+            -DWITHOUT_TOKUDB=ON \
+            -DWITHOUT_TOKUDB_TOOLS=ON \
+            -DWITH_INNOBASE_STORAGE_ENGINE=ON \
+            -DWITH_MYISAM_STORAGE_ENGINE=OFF \
+            -DPLUGIN_MYISAMMRG=NO \
+            -DWITH_ARCHIVE_STORAGE_ENGINE=OFF \
+            -DWITH_BLACKHOLE_STORAGE_ENGINE=OFF \
+            -DWITH_FEDERATED_STORAGE_ENGINE=OFF \
+            -DWITH_PLUGIN_S3=OFF \
+            -DWITH_SSL=bundled \
+            -DWITH_ZLIB=bundled \
+            -DWITH_LIBAIO=OFF \
+            -DWITH_NUMA=OFF \
+            -DWITH_VALGRIND=OFF \
+            -DWITH_SAFEMALLOC=OFF \
+            -DWITHOUT_EXAMPLE=ON \
+            -DPLUGIN_ARCHIVE=NO \
+            -DPLUGIN_FEDERATEDX=NO \
+            -DPLUGIN_SEMISYNC=NO \
+            -DPLUGIN_SPHINX=NO \
+            -DPLUGIN_CONNECT=NO \
+            -DCMAKE_CROSSCOMPILING=ON \
+            -DCMAKE_POLICY_DEFAULT_CMP0057=NEW \
+            -DIMPORT_EXECUTABLES="$HOST_IMPORT_EXECUTABLES" \
+            -DCMAKE_PROJECT_INCLUDE="$PWD/native/android-flags.cmake" \
+            2>&1 | tee native/build-configure.log || {
+              echo "::error::The cmake configure step failed; the error block of native/build-configure.log follows."
+              grep -m1 -A9 "CMake Error" native/build-configure.log | while IFS= read -r line; do
+                [ -n "$line" ] && echo "::error::$line"
+              done
+              exit 1
+            }
+
+      # Feature probes that need a linked test binary are the usual trap in a
+      # cross build. The reason CMake recorded is printed as an annotation so
+      # the diagnosis does not depend on downloading the log artifact. Every
+      # command is tolerant: a diagnostic step must never fail the build.
+      - name: Explain failed feature probes
+        if: always()
+        run: |
+          set -uo pipefail
+          if [ -f native/build/CMakeFiles/CMakeError.log ]; then
+            echo "--- why check_function_exists failed ---"
+            grep -m1 -A25 "HAVE_MKSTEMP" native/build/CMakeFiles/CMakeError.log \
+              | while IFS= read -r line; do
+                  [ -n "$line" ] && echo "::warning::$line"
+                done || echo "no HAVE_MKSTEMP entry in CMakeError.log"
+          else
+            echo "::warning::CMakeError.log was not produced"
+          fi
+          echo "--- probe results ---"
+          grep -E "Performing Test HAVE_(MKSTEMP|MEMMOVE|SIGWAIT|ACCESS)" \
+            native/build-configure.log || echo "no probe lines in the configure log"
+          echo "--- compile flags ---"
+          grep -m1 -A3 "CMAKE_C_FLAGS" native/build/CMakeCache.txt || true
+          exit 0
+
+      - name: Record the detected libc features
+        run: |
+          set -euo pipefail
+          header="native/build/include/my_config.h"
+          if [ ! -f "$header" ]; then
+            echo "::warning::my_config.h was not generated"
+            exit 0
+          fi
+          missing=0
+          listed=0
+          # Only single line `#cmakedefine HAVE_X` entries are compared; the
+          # templated ones (`HAVE_CHARSET_${name}`) are not real macros.
+          for macro in $(grep -oE '^#cmakedefine [0-9]*HAVE_[A-Z0-9_]+$' "$SOURCE_DIR/config.h.cmake" | awk '{print $NF}' | sort -u); do
+            if ! grep -q "define $macro " "$header"; then
+              missing=$((missing + 1))
+              if [ "$listed" -lt 10 ]; then
+                echo "::warning::$macro was not detected by the probes"
+                listed=$((listed + 1))
+              fi
+            fi
+          done
+          echo "probes missed $missing HAVE_ macros of the single line ones"
+          grep -E "define HAVE_(MEMCPY|MEMMOVE|SIGWAIT|UNISTD_H) " "$header" || true
+
+      # The probes are unreliable in this toolchain (see the compile flags
+      # above), and some of them also answer *yes* where Android disagrees. The
+      # generated header is corrected here instead of patching the sources:
+      # bionic has no `uint`/`ushort` typedefs in <sys/types.h>, so HAVE_UINT
+      # would remove MariaDB's own typedefs.
+      - name: Correct the generated feature header
+        run: |
+          set -euo pipefail
+          for header in native/build/include/my_config.h native/build/include/config.h; do
+            [ -f "$header" ] || continue
+            python3 - "$header" <<'PY'
+          import pathlib
+          import re
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          text = path.read_text()
+          for macro in ("HAVE_UINT",):
+              pattern = re.compile(rf"^#define {macro}\b.*$", re.M)
+              text, count = pattern.subn(f"/* #undef {macro} (PALLSQL: bionic has no such typedef) */", text)
+              print(f"{path.name}: {macro} corrected {count} time(s)")
+          path.write_text(text)
+          PY
+          done
+          grep -n "HAVE_UINT" native/build/include/my_config.h || true
+
+      # The 10 annotation slots per step let the exact compiler/configure error
+      # reach the pull request without downloading the log artifact.
+      - name: Build mariadbd
+        run: |
+          set -euo pipefail
+          # -k keeps ninja going after a failure so a single run reports every
+          # independent problem instead of one per push.
+          ninja -C native/build -k 0 mariadbd 2>&1 | tee native/build-make.log || {
+            echo "::error::The mariadbd build failed; distinct compiler errors follow."
+            grep -E "error:" native/build-make.log | sort -u | head -8 | while IFS= read -r line; do
+              [ -n "$line" ] && echo "::error::$line"
+            done
+            exit 1
+          }
+
+      - name: Validate the produced binary
+        run: |
+          set -euo pipefail
+          binary="$(find native/build -type f -name mariadbd | head -1)"
+          if [ -z "$binary" ]; then
+            echo "::error::mariadbd was not produced"
+            exit 1
+          fi
+          file "$binary"
+          readelf -h "$binary" | tee native/build-readelf.txt
+          readelf -d "$binary" | grep -E "NEEDED|RPATH|RUNPATH" | tee -a native/build-readelf.txt
+          # A 64-bit ARM Android shared object is required; anything else means
+          # the toolchain silently produced a host binary.
+          readelf -h "$binary" | grep -q "AArch64" || {
+            echo "::error::$binary is not an arm64 binary"
+            exit 1
+          }
+          echo "BINARY=$binary" >> "$GITHUB_ENV"
+          echo "SIZE_BYTES=$(stat -c%s "$binary")" >> "$GITHUB_ENV"
+
+      # A debug-symbol laden .so would be tens of megabytes inside every APK.
+      # Stripping is done with the same NDK toolchain that produced the binary.
+      - name: Strip the binary
+        run: |
+          set -euo pipefail
+          echo "NDK_ROOT=${NDK_ROOT:-unset} BINARY=${BINARY:-unset}"
+          strip_bin=""
+          for candidate in \
+            "$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" \
+            "$NDK_ROOT/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-strip"; do
+            if [ -x "$candidate" ]; then
+              strip_bin="$candidate"
+              break
+            fi
+          done
+          if [ -z "$strip_bin" ]; then
+            strip_bin="$(find "$NDK_ROOT" -type f -name 'llvm-strip*' 2>/dev/null | head -1)"
+          fi
+          before="$(stat -c%s "$BINARY")"
+          if [ -n "$strip_bin" ] && [ -x "$strip_bin" ]; then
+            "$strip_bin" --strip-unneeded "$BINARY"
+            echo "stripped with $strip_bin"
+          else
+            echo "::warning::No llvm-strip in the NDK image; the APK will carry debug symbols."
+          fi
+          after="$(stat -c%s "$BINARY")"
+          echo "binary size: ${before} -> ${after} bytes"
+          file "$BINARY"
+          echo "SIZE_BYTES=$after" >> "$GITHUB_ENV"
+
+      - name: Package the runtime for the APK
+        run: |
+          set -euo pipefail
+          set +e
+          mkdir -p android/app/src/main/jniLibs/arm64-v8a
+          cp "$BINARY" android/app/src/main/jniLibs/arm64-v8a/libmariadbd.so
+          echo "${MARIADB_VERSION}" > android/app/src/main/jniLibs/arm64-v8a/libmariadb-version.so
+          # Bootstrap SQL the app feeds to `mariadbd --bootstrap` on first run.
+          mkdir -p android/app/src/main/assets/mariadb
+          for script in mysql_system_tables.sql mysql_system_tables_data.sql \
+            mysql_test_data_timezone.sql fill_help_tables.sql; do
+            src="$(find "$SOURCE_DIR/scripts" -maxdepth 1 -name "$script" | head -1)"
+            [ -n "$src" ] && cp "$src" android/app/src/main/assets/mariadb/
+          done
+          # Charsets / error messages are loaded from the APK assets at runtime.
+          mkdir -p android/app/src/main/assets/mariadb/share
+          if [ -d "$SOURCE_DIR/sql/share/charsets" ]; then
+            cp -r "$SOURCE_DIR/sql/share/charsets" android/app/src/main/assets/mariadb/share/
+          fi
+          if [ -d "$SOURCE_DIR/sql/share/english" ]; then
+            cp -r "$SOURCE_DIR/sql/share/english" android/app/src/main/assets/mariadb/share/
+          fi
+          ls -l android/app/src/main/jniLibs/arm64-v8a
+          ls -l android/app/src/main/assets/mariadb | head -20
+
+      - name: Write the build report
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p native/report
+          {
+            echo "# MariaDB Android build report"
+            echo
+            echo "- MariaDB source: ${MARIADB_VERSION}"
+            echo "- Source sha256: $(cat native/src/SOURCE_SHA256.txt 2>/dev/null || echo unknown)"
+            echo "- Pinned sha256: ${MARIADB_SHA256:-not pinned}"
+            echo "- ABI: arm64-v8a"
+            echo "- NDK: ${NDK_VERSION}"
+            echo "- Android API level: ${ANDROID_API}"
+            echo "- Binary size: ${SIZE_BYTES:-not built} bytes"
+            echo
+            echo '```'
+            [ -f native/build-readelf.txt ] && head -40 native/build-readelf.txt || echo "no readelf output"
+            echo '```'
+          } > native/report/mariadb-build.md
+
+      - name: Upload the native runtime
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mariadb-runtime-arm64-v8a
+          path: |
+            android/app/src/main/jniLibs/arm64-v8a/libmariadbd.so
+            android/app/src/main/assets/mariadb
+            native/build-readelf.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mariadb-build-logs
+          path: |
+            native/build-configure.log
+            native/build-make.log
+            native/build-readelf.txt
+            native/report
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "### MariaDB Android runtime"
+            echo
+            if [ -f android/app/src/main/jniLibs/arm64-v8a/libmariadbd.so ]; then
+              echo "- libmariadbd.so: $(stat -c%s android/app/src/main/jniLibs/arm64-v8a/libmariadbd.so) bytes"
+            else
+              echo "- libmariadbd.so: **not produced** (see the logs artifact)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -4,8 +4,8 @@ class AppInfo {
 
   static const String appName = 'PALLSQL';
   static const String packageName = 'com.pallsql.mobile';
-  static const String version = '0.2.0';
-  static const String buildNumber = '4';
+  static const String version = '0.3.0';
+  static const String buildNumber = '5';
   static const String tagline = 'Mobile development environment';
 
   /// Product tagline shown on the splash and the About page.

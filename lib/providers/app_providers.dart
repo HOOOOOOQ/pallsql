@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
+import 'package:sqflite/sqflite.dart' as sqflite;
 
 import '../core/errors/app_failure.dart';
 import '../models/app_settings.dart';
@@ -19,7 +20,9 @@ import '../repositories/project_repository.dart';
 import '../core/contracts/controllers.dart';
 import '../services/app_bootstrap.dart';
 import '../services/backup_service.dart';
+import '../services/legacy_sqlite_migration.dart';
 import '../services/link_opener.dart';
+import '../services/mariadb/mariadb_service.dart';
 import '../services/native_bridge.dart';
 import '../services/php_runtime_service.dart';
 import '../services/query_store.dart';
@@ -65,8 +68,8 @@ final Provider<ProjectRepository> projectRepositoryProvider =
     Provider<ProjectRepository>(
         (Ref ref) => ref.watch(bootstrapProvider).projects);
 
-final Provider<SqliteDatabaseRepository> databaseRepositoryProvider =
-    Provider<SqliteDatabaseRepository>(
+final Provider<MariaDbRepository> databaseRepositoryProvider =
+    Provider<MariaDbRepository>(
   (Ref ref) => ref.watch(bootstrapProvider).databases,
 );
 
@@ -291,24 +294,35 @@ final Provider<ServiceStatus> phpStatusProvider = Provider<ServiceStatus>(
 
 class DatabaseOverview {
   const DatabaseOverview({
-    required this.sqlite,
     required this.mariadb,
+    required this.runtime,
     required this.databases,
     required this.loadedAt,
   });
 
-  final EngineAvailability sqlite;
+  /// Availability of the MariaDB **engine** (a real connection succeeded).
   final EngineAvailability mariadb;
+
+  /// State of the native server process.
+  final MariaDbStatus runtime;
+
   final List<DatabaseInfo> databases;
   final DateTime loadedAt;
 
+  bool get isRunning => runtime.isRunning;
+
   ServiceStatus toStatus() {
-    if (!sqlite.available) {
-      return ServiceStatus.unavailable(sqlite.reason ?? 'SQLite unavailable');
+    if (!mariadb.available) {
+      return ServiceStatus(
+        runtime.state.serviceState,
+        message: runtime.message.isEmpty
+            ? (mariadb.reason ?? 'MariaDB is not running')
+            : runtime.message,
+      );
     }
     return ServiceStatus(
       ServiceState.running,
-      message: 'SQLite ${sqlite.version ?? ''}'.trim(),
+      message: 'MariaDB ${mariadb.version ?? ''}'.trim(),
     );
   }
 }
@@ -326,27 +340,31 @@ class DatabaseNotifier extends AsyncNotifier<DatabaseOverview>
   }
 
   Future<DatabaseOverview> _load() async {
-    final SqliteDatabaseRepository repository =
-        ref.read(databaseRepositoryProvider);
+    final MariaDbRepository repository = ref.read(databaseRepositoryProvider);
     final AppBootstrap bootstrap = ref.read(bootstrapProvider);
-    final EngineAvailability sqlite = await repository.availability();
-    final EngineAvailability mariadb = EngineAvailability.unavailable(
-      DatabaseEngineId.mariadb,
-      'MariaDB is not bundled with this build. See the Database tab for the '
-      'evaluation notes.',
-    );
+    // Touch the process state first: the engine probe below is a real TCP +
+    // protocol round trip, so it can only succeed when a server is running.
+    final MariaDbStatus runtime = await bootstrap.mariadb.refresh();
+    final EngineAvailability mariadb = await repository.availability();
     List<DatabaseInfo> databases = <DatabaseInfo>[];
-    if (sqlite.available) {
-      databases = await repository.listDatabases();
+    if (mariadb.available) {
+      try {
+        databases = await repository.listDatabases();
+      } on Object catch (error) {
+        bootstrap.logs.warning(
+          LogSource.database,
+          'SHOW DATABASES failed: $error',
+        );
+      }
     } else {
-      bootstrap.logs.warning(
+      bootstrap.logs.debug(
         LogSource.database,
-        'SQLite unavailable: ${sqlite.reason ?? 'unknown'}',
+        'MariaDB unavailable: ${mariadb.reason ?? 'unknown'}',
       );
     }
     return DatabaseOverview(
-      sqlite: sqlite,
       mariadb: mariadb,
+      runtime: runtime,
       databases: databases,
       loadedAt: DateTime.now(),
     );
@@ -367,8 +385,7 @@ class DatabaseNotifier extends AsyncNotifier<DatabaseOverview>
 
   @override
   Future<String?> createDatabase(String name) async {
-    final SqliteDatabaseRepository repository =
-        ref.read(databaseRepositoryProvider);
+    final MariaDbRepository repository = ref.read(databaseRepositoryProvider);
     try {
       await repository.createDatabase(name);
       await refresh();
@@ -380,8 +397,7 @@ class DatabaseNotifier extends AsyncNotifier<DatabaseOverview>
 
   @override
   Future<String?> deleteDatabase(String name) async {
-    final SqliteDatabaseRepository repository =
-        ref.read(databaseRepositoryProvider);
+    final MariaDbRepository repository = ref.read(databaseRepositoryProvider);
     try {
       await repository.deleteDatabase(name);
       await refresh();
@@ -391,6 +407,36 @@ class DatabaseNotifier extends AsyncNotifier<DatabaseOverview>
     }
   }
 }
+
+/// The native MariaDB service manager (lifecycle, config, logs).
+/// Reader for the SQLite files PALLSQL 0.1/0.2 created.
+///
+/// This is the **only** provider that imports sqflite, and the only way the app
+/// can still open an SQLite file: read-only, on explicit user request, to copy
+/// the data into MariaDB. Nothing in the write path can reach it, so SQLite
+/// cannot come back as an engine.
+final Provider<LegacySqliteMigration> legacyMigrationProvider =
+    Provider<LegacySqliteMigration>((Ref ref) {
+  final AppBootstrap bootstrap = ref.watch(bootstrapProvider);
+  return LegacySqliteMigration(
+    directory: Directory(p.join(bootstrap.workspace.rootPath, 'database')),
+    repository: bootstrap.databases,
+    factory: sqflite.databaseFactory,
+    logs: bootstrap.logs,
+  );
+});
+
+final Provider<MariaDBServiceManager> mariadbServiceProvider =
+    Provider<MariaDBServiceManager>(
+  (Ref ref) => ref.watch(bootstrapProvider).mariadb,
+);
+
+/// Live status of the MariaDB server, updated by the manager itself.
+final StreamProvider<MariaDbStatus> mariadbStatusProvider =
+    StreamProvider<MariaDbStatus>((Ref ref) {
+  final MariaDBServiceManager manager = ref.watch(mariadbServiceProvider);
+  return manager.changes;
+});
 
 final AsyncNotifierProvider<DatabaseNotifier, DatabaseOverview>
     databaseProvider =
@@ -412,7 +458,7 @@ class QueryHistoryNotifier extends Notifier<List<QueryHistoryEntry>> {
   }
 
   List<QueryHistoryEntry> _current({required bool watch}) {
-    final SqliteDatabaseRepository repository = watch
+    final MariaDbRepository repository = watch
         ? ref.watch(databaseRepositoryProvider)
         : ref.read(databaseRepositoryProvider);
     return List<QueryHistoryEntry>.from(repository.history);
@@ -735,8 +781,7 @@ class AppTerminalApi implements TerminalApi {
 
   @override
   Future<List<DatabaseInfo>> databases() async {
-    final SqliteDatabaseRepository repository =
-        ref.read(databaseRepositoryProvider);
+    final MariaDbRepository repository = ref.read(databaseRepositoryProvider);
     return repository.listDatabases();
   }
 
@@ -773,6 +818,48 @@ class AppTerminalApi implements TerminalApi {
   @override
   Future<EngineAvailability> databaseAvailability() =>
       ref.read(databaseRepositoryProvider).availability();
+
+  @override
+  MariaDbStatus get mariaDbStatus =>
+      ref.read(mariadbServiceProvider).snapshot();
+
+  @override
+  Future<String> startMariaDb() async {
+    final MariaDBServiceManager manager = ref.read(mariadbServiceProvider);
+    final bool ok = await manager.start();
+    await ref.read(databaseProvider.notifier).refresh();
+    final MariaDbStatus status = manager.snapshot();
+    return ok ? status.message : 'MariaDB did not start: ${status.message}';
+  }
+
+  @override
+  Future<String> stopMariaDb() async {
+    final MariaDBServiceManager manager = ref.read(mariadbServiceProvider);
+    final bool ok = await manager.stop();
+    await ref.read(databaseProvider.notifier).refresh();
+    return ok ? 'MariaDB stopped' : 'MariaDB could not be stopped';
+  }
+
+  @override
+  Future<String> restartMariaDb() async {
+    final MariaDBServiceManager manager = ref.read(mariadbServiceProvider);
+    final bool ok = await manager.restart();
+    await ref.read(databaseProvider.notifier).refresh();
+    return ok ? manager.snapshot().message : 'MariaDB restart failed';
+  }
+
+  @override
+  Future<String> initializeMariaDb() async {
+    final MariaDBServiceManager manager = ref.read(mariadbServiceProvider);
+    final bool ok = await manager.initialize();
+    return ok
+        ? 'Data directory ready at ${manager.dataDirectory}'
+        : manager.snapshot().message;
+  }
+
+  @override
+  Future<String> mariaDbLogTail() =>
+      ref.read(mariadbServiceProvider).readErrorLogTail(30);
 
   @override
   Future<List<Project>> projects() =>

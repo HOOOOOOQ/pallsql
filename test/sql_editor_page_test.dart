@@ -22,12 +22,19 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late AppBootstrap bootstrap;
+  late String schema;
 
   setUp(() async {
     bootstrap = await createTestBootstrap();
+    // MariaDB DDL is not rolled back, so every test owns a unique schema.
+    schema = await createScratchSchema(bootstrap, 'pallsql_editor');
   });
 
   tearDown(() async {
+    // The schema is deliberately *not* dropped here: tearDown of a widget test
+    // still runs inside the fake async zone, where a real socket call never
+    // completes and the suite would hang. Every test allocates a unique schema
+    // name instead, and the CI server is thrown away after the run.
     await disposeTestBootstrap(bootstrap);
   });
 
@@ -56,6 +63,25 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 10));
     }
+  }
+
+  /// Taps a button whose handler talks to MariaDB and lets the real socket
+  /// round trip finish.
+  ///
+  /// A widget test runs in a fake async zone, so a query started by a plain
+  /// `tester.tap` never completes - and because [MariaDbClient] serialises
+  /// queries, the stuck statement would block every later one too. Running the
+  /// tap inside `tester.runAsync` keeps the real event loop alive.
+  Future<void> tapAndAwaitDatabase(
+    WidgetTester tester,
+    Finder finder, {
+    Duration wait = const Duration(milliseconds: 600),
+  }) async {
+    await tester.runAsync(() async {
+      await tester.tap(finder);
+      await Future<void>.delayed(wait);
+    });
+    await settle(tester, rounds: 12);
   }
 
   /// Lets Material snackbars expire so no timer outlives the test.
@@ -87,44 +113,41 @@ void main() {
     await settle(tester);
   }
 
-  Future<void> createDatabase(WidgetTester tester, String name) async {
-    await tester.runAsync(() => bootstrap.databases.createDatabase(name));
-  }
-
-  testWidgets('opens the SQL editor and asks for a database when there is none',
+  testWidgets('opens the SQL editor without a database preselected',
       (WidgetTester tester) async {
     await pumpEditor(tester);
 
     expect(find.byType(SqlEditorPage), findsOneWidget);
     expect(find.text('SQL editor'), findsOneWidget);
-    expect(find.text('No databases yet'), findsOneWidget);
-    expect(find.text('New database'), findsOneWidget);
+    // The chooser is empty until the user picks a schema, and the page says so
+    // instead of silently running against an arbitrary MariaDB schema.
+    expect(find.text('No database selected'), findsWidgets);
+    expect(find.text(schema), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('preselects the database it was opened with',
       (WidgetTester tester) async {
-    await createDatabase(tester, 'app');
-    await pumpEditor(tester, database: 'app');
+    await pumpEditor(tester, database: schema);
 
-    expect(find.text('Running against app.db'), findsOneWidget);
-    expect(find.text('app'), findsWidgets);
+    expect(find.text('Running against $schema'), findsOneWidget);
+    expect(find.text(schema), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('runs a SELECT and shows the stored row',
       (WidgetTester tester) async {
-    await createDatabase(tester, 'app');
-    await pumpEditor(tester, database: 'app');
+    await pumpEditor(tester, database: schema);
 
     await tester.enterText(
       find.byType(TextField),
-      'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL);\n'
+      'CREATE TABLE users (id INT AUTO_INCREMENT PRIMARY KEY, '
+      'name VARCHAR(64) NOT NULL);\n'
       "INSERT INTO users (name) VALUES ('PALLSQL');\n"
       'SELECT * FROM users;',
     );
     await tester.pump();
-    await tester.tap(find.text('Execute'));
+    await tapAndAwaitDatabase(tester, find.text('Execute'));
     await waitFor(tester, find.byType(QueryResultView));
 
     expect(find.byType(QueryResultView), findsOneWidget,
@@ -137,7 +160,7 @@ void main() {
     // The row must really be in the database, not only on screen.
     final QueryResult? persisted = await tester.runAsync(
       () => bootstrap.databases.execute(
-        'app',
+        schema,
         'SELECT name FROM users;',
         recordHistory: false,
       ),
@@ -147,16 +170,14 @@ void main() {
 
   testWidgets('reports an invalid statement without crashing',
       (WidgetTester tester) async {
-    await createDatabase(tester, 'app');
-    await pumpEditor(tester, database: 'app');
+    await pumpEditor(tester, database: schema);
 
     await tester.enterText(
       find.byType(TextField),
       'SELECT * FROM missing_table;',
     );
     await tester.pump();
-    await tester.tap(find.text('Execute'));
-    await settle(tester, rounds: 30);
+    await tapAndAwaitDatabase(tester, find.text('Execute'));
 
     // The error is rendered inside the result card and repeated in a snackbar.
     expect(find.byType(QueryResultView), findsOneWidget);
@@ -174,8 +195,7 @@ void main() {
   });
 
   testWidgets('rejects an empty statement', (WidgetTester tester) async {
-    await createDatabase(tester, 'app');
-    await pumpEditor(tester, database: 'app');
+    await pumpEditor(tester, database: schema);
 
     await tester.tap(find.text('Execute'));
     await settle(tester, rounds: 8);
@@ -186,13 +206,11 @@ void main() {
 
   testWidgets('records executed statements in the history',
       (WidgetTester tester) async {
-    await createDatabase(tester, 'app');
-    await pumpEditor(tester, database: 'app');
+    await pumpEditor(tester, database: schema);
 
     await tester.enterText(find.byType(TextField), 'SELECT 1 AS one;');
     await tester.pump();
-    await tester.tap(find.text('Execute'));
-    await settle(tester, rounds: 30);
+    await tapAndAwaitDatabase(tester, find.text('Execute'));
 
     final ProviderContainer container = ProviderScope.containerOf(
       tester.element(find.byType(SqlEditorPage)),
@@ -201,14 +219,13 @@ void main() {
         container.read(queryHistoryProvider);
     expect(history, isNotEmpty);
     expect(history.first.sql, contains('SELECT 1'));
-    expect(history.first.database, 'app');
+    expect(history.first.database, schema);
     expect(history.first.succeeded, isTrue);
     expect(find.byType(QueryResultView), findsOneWidget);
   });
 
   testWidgets('the Database tab opens the SQL editor from both entry points',
       (WidgetTester tester) async {
-    await createDatabase(tester, 'app');
     await pumpEditor(tester, home: const DatabasePage());
 
     // Entry point 1: the app bar shortcut.
@@ -217,7 +234,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     await settle(tester);
     expect(find.byType(SqlEditorPage), findsOneWidget);
-    expect(find.text('Running against app.db'), findsOneWidget);
+    expect(find.textContaining('Running against'), findsOneWidget);
 
     // Back to the Database tab, then entry point 2: the primary button.
     await tester.pageBack();
@@ -242,9 +259,17 @@ void main() {
 
   testWidgets('a database created from the editor becomes selectable',
       (WidgetTester tester) async {
+    final String created = 'pallsql_from_editor_'
+        '${DateTime.now().microsecondsSinceEpoch % 100000000}';
     await pumpEditor(tester);
 
-    await tester.tap(find.text('New database'));
+    // Without any schema the header offers the empty-state shortcut.
+    await tester.scrollUntilVisible(
+      find.text('New'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('New').first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -253,19 +278,23 @@ void main() {
         of: find.byType(AlertDialog),
         matching: find.byType(TextField),
       ),
-      'from_editor',
+      created,
     );
     await tester.pump();
-    await tester.tap(find.text('Create'));
-    await settle(tester, rounds: 30);
+    await tapAndAwaitDatabase(tester, find.text('Create'),
+        wait: const Duration(milliseconds: 900));
 
-    expect(find.text('Running against from_editor.db'), findsOneWidget);
-    final List<String>? files = await tester.runAsync(() async {
+    expect(find.text('Running against $created'), findsOneWidget);
+    final List<String>? names = await tester.runAsync(() async {
       final List<DatabaseInfo> databases =
           await bootstrap.databases.listDatabases();
       return databases.map((DatabaseInfo info) => info.name).toList();
     });
-    expect(files, contains('from_editor'));
+    expect(names, contains(created));
     await drainSnackBars(tester);
+    // Leave the server exactly as it was found.
+    await tester.runAsync(
+      () => bootstrap.databases.deleteDatabase(created),
+    );
   });
 }

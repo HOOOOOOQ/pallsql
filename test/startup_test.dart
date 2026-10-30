@@ -24,7 +24,7 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: PallsqlSplashScreen(
-          step: 'SQLite engine ready',
+          step: 'MariaDB server ready',
           progress: 0.5,
         ),
       ),
@@ -34,7 +34,7 @@ void main() {
     expect(find.text('PALLSQL'), findsOneWidget);
     expect(find.text('Mobile Development Environment'), findsOneWidget);
     expect(find.text('Initializing local environment'), findsOneWidget);
-    expect(find.text('SQLite engine ready'), findsOneWidget);
+    expect(find.text('MariaDB server ready'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -76,7 +76,7 @@ void main() {
         timeout: const Duration(seconds: 10),
         createBootstrap: (void Function(String step) onProgress) {
           onProgress('Workspace folders ready');
-          onProgress('SQLite engine ready');
+          onProgress('MariaDB server ready');
           return pending.future;
         },
       ),
@@ -84,7 +84,7 @@ void main() {
     await tester.pump();
     expect(find.byType(PallsqlSplashScreen), findsOneWidget,
         reason: 'DEBUG screen: ${_screenText(tester)}');
-    expect(find.text('SQLite engine ready'), findsOneWidget);
+    expect(find.text('MariaDB server ready'), findsOneWidget);
 
     pending.complete(bootstrap);
 

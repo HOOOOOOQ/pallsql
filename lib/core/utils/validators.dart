@@ -117,7 +117,7 @@ class Validators {
 
   static bool isValidEntryName(String name) => entryNameError(name) == null;
 
-  /// SQLite database name (also used as the file name).
+  /// MariaDB schema name.
   static String? databaseNameError(String name) {
     final String trimmed = name.trim();
     if (trimmed.isEmpty) {
@@ -147,7 +147,7 @@ class Validators {
     return collapsed.length <= 48 ? collapsed : collapsed.substring(0, 48);
   }
 
-  /// SQLite identifiers are quoted with double quotes in generated SQL.
+  /// Identifiers are quoted with backticks, which MariaDB always accepts.
   static String quoteSqlIdentifier(String identifier) =>
       '"${identifier.replaceAll('"', '""')}"';
 

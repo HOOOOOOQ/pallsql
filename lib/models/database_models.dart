@@ -2,28 +2,21 @@ import 'dart:convert';
 
 import '../core/errors/app_failure.dart';
 
-/// Identifier of the database engine currently backing the UI.
+/// Identifier of the database engine backing the UI.
+///
+/// PALLSQL 0.3 removed SQLite: [mariadb] is the only value the app produces.
+/// The enum is kept so availability objects stay explicit, and so a future
+/// engine cannot be added by accident through a string.
 enum DatabaseEngineId {
-  sqlite,
   mariadb;
 
-  String get label {
-    switch (this) {
-      case DatabaseEngineId.sqlite:
-        return 'SQLite';
-      case DatabaseEngineId.mariadb:
-        return 'MariaDB';
-    }
-  }
+  String get label => 'MariaDB';
 
-  String get storageDescription {
-    switch (this) {
-      case DatabaseEngineId.sqlite:
-        return 'Embedded file based SQL engine bundled with the app.';
-      case DatabaseEngineId.mariadb:
-        return 'Full MariaDB server; requires a native Android runtime.';
-    }
-  }
+  String get storageDescription =>
+      'MariaDB Server running locally through the native Android runtime.';
+
+  /// The SQL dialect the server really speaks.
+  String get dialect => 'MariaDB';
 }
 
 /// Availability of a database engine inside this build.
@@ -47,7 +40,7 @@ class EngineAvailability {
       EngineAvailability(engine: engine, available: false, reason: reason);
 }
 
-/// A database file (SQLite) managed by PALLSQL.
+/// A schema (database) on the MariaDB server.
 class DatabaseInfo {
   const DatabaseInfo({
     required this.name,
@@ -92,7 +85,7 @@ class TableInfo {
   bool get isView => type == 'view';
 }
 
-/// Column metadata from `PRAGMA table_info`.
+/// Column metadata from `information_schema.COLUMNS`.
 class ColumnInfo {
   const ColumnInfo({
     required this.name,
@@ -119,19 +112,35 @@ class ColumnInfo {
   }
 }
 
-/// Cooperative cancellation token for multi-statement scripts.
+/// Cancellation token handed to the database repository.
 ///
-/// SQLite cannot interrupt a single running statement through sqflite, so
-/// PALLSQL only offers Stop for scripts: the token is checked between
-/// statements, which is a real (documented) boundary.
+/// With MariaDB this triggers a real server side `KILL QUERY` (see
+/// `MariaDbRepository.execute`), so stopping a long query works mid statement.
 class SqlCancelToken {
   bool _cancelled = false;
+  void Function()? _onCancel;
 
   bool get isCancelled => _cancelled;
 
-  void cancel() => _cancelled = true;
+  /// Registers the real cancellation hook (MariaDB `KILL QUERY`).
+  ///
+  /// Passing `null` detaches it when the statement is finished.
+  void attach(void Function()? hook) {
+    _onCancel = hook;
+    if (_cancelled && hook != null) {
+      hook();
+    }
+  }
 
-  void reset() => _cancelled = false;
+  void cancel() {
+    _cancelled = true;
+    _onCancel?.call();
+  }
+
+  void reset() {
+    _cancelled = false;
+    _onCancel = null;
+  }
 }
 
 /// Result of a SQL statement executed by the user.

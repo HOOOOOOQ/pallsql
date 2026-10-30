@@ -4,19 +4,25 @@
 
 PALLSQL adalah lingkungan pengembangan web lokal (mirip XAMPP) yang berjalan
 sepenuhnya di HP Android, tanpa root, tanpa Termux, dan tanpa internet setelah
-aplikasi dipasang. Di dalamnya ada HTTP server sungguhan, database SQLite
-sungguhan, file manager, code editor, project manager, backup ZIP, log viewer,
-dan terminal terbatas berbasis registry perintah.
+aplikasi dipasang. Di dalamnya ada HTTP server sungguhan, **server MariaDB
+native yang dibangun dari source dan ikut di dalam APK**, file manager, code
+editor, project manager, backup ZIP, log viewer, dan terminal terbatas berbasis
+registry perintah.
 
 Rilis terbaru: [halaman Releases](https://github.com/HOOOOOOQ/pallsql/releases/latest)
-(APK ±27,4 MB, terpasang langsung, ditandatangani debug key). Riwayat build dan
-artefak ada di tab [Actions](https://github.com/HOOOOOOQ/pallsql/actions).
+(terpasang langsung, ditandatangani debug key). Riwayat build dan artefak ada di
+tab [Actions](https://github.com/HOOOOOOQ/pallsql/actions).
 
-> **Status jujur:** proyek ini sedang dalam pengembangan aktif. Static web
-> server, SQLite, file manager, editor, project, backup, log dan terminal sudah
-> diimplementasikan di kode. **Runtime PHP dan MariaDB belum dibundel**, jadi
-> permintaan `.php` dijawab `HTTP 501` dengan penjelasan, tidak pernah
-> mengirim source code PHP ke browser. Lihat [Status fitur](#status-fitur).
+> **Status jujur:** versi 0.3 mengganti SQLite dengan **MariaDB Server 10.11.9**
+> yang di-cross-compile untuk Android dengan NDK 27. Binary `libmariadbd.so`
+> sudah berhasil dibangun di CI (validasi `readelf`, artefak
+> `mariadb-runtime-arm64-v8a`) dan dibuktikan ikut masuk ke APK, dan seluruh
+> lapisan data aplikasi memakai klien protokol MariaDB sendiri (tanpa SQLite,
+> tanpa cloud, tanpa Connector/C). **Yang belum: menjalankan server itu di
+> perangkat fisik** — belum ada uji perangkat/emulator. Runtime PHP juga belum
+> dibundel, jadi permintaan `.php` dijawab `HTTP 501` dengan penjelasan, tidak
+> pernah mengirim source code PHP ke browser. Rincian status:
+> [`docs/mariadb-android.md`](docs/mariadb-android.md).
 
 ---
 
@@ -53,13 +59,18 @@ artefak ada di tab [Actions](https://github.com/HOOOOOOQ/pallsql/actions).
   berbasis isi untuk aset, 404/403/405/500 yang benar, request logging, deteksi
   port bentrok, start / stop / restart yang idempoten, proteksi path traversal
   termasuk variasi URL-encoded. Detail: [`docs/http-server.md`](docs/http-server.md).
-- **Database + SQL editor**: adapter netral engine, implementasi SQLite
-  sungguhan (sqflite) dengan daftar / buat / hapus database, tabel, kolom, CRUD
-  baris, import SQL, export SQL, history query, dan backup file. Halaman **SQL
-  editor** sendiri bisa dibuka dari tab Database (tombol *Open SQL editor* atau
-  ikon terminal di app bar) maupun dari detail database: pilih database, tulis
-  statement, Execute / Clear, lihat grid hasil, jumlah baris, error query,
-  loading state, dan riwayat yang bisa diketuk untuk dipakai ulang.
+- **Database MariaDB + SQL editor**: server `mariadbd` native hasil
+  cross-compile NDK 27 (`libmariadbd.so`, ABI `arm64-v8a`) dijalankan langsung
+  oleh aplikasi, dan aplikasi bicara **protokol MariaDB** (handshake v10,
+  `mysql_native_password`, text protocol, prepared statement) lewat TCP
+  `127.0.0.1:3306` atau Unix socket. Semua operasi data — daftar/buat/hapus
+  schema, tabel, kolom, CRUD, import/export SQL, backup konsisten
+  (`START TRANSACTION WITH CONSISTENT SNAPSHOT`) — melewati server itu. Tidak
+  ada SQLite sebagai engine, tidak ada fallback, tidak ada cloud. Halaman **SQL
+  editor** dibuka dari tab Database (tombol *Open SQL editor* atau ikon terminal
+  di app bar) maupun dari detail database: pilih schema, tulis statement,
+  Execute / Clear, grid hasil, jumlah baris, durasi, diagnostik error, dan
+  riwayat yang bisa diketuk untuk dipakai ulang.
 - **File manager** di dalam `PALLSQL/`: list, buat, buka, edit, simpan, rename,
   copy, move, delete, import (document picker), export + share, multi-select,
   search, sort, ukuran file/folder.
@@ -78,17 +89,16 @@ artefak ada di tab [Actions](https://github.com/HOOOOOOQ/pallsql/actions).
   `ls`, `projects`, `server status|start|stop|restart`, `logs`,
   `php version`, `database list|create|use|info`, `tables`, `desc`, `run`).
   Tidak ada `sh -c`, tidak ada shell bebas.
-- **SQL console di terminal**: perintah `sql [database]` masuk ke mode console.
-  Setiap baris dijalankan ke SQLite sungguhan; `.tables`, `.databases`, `.use`,
-  `.read`, `.force on|off`, `.help` dan `\q` (keluar) tersedia. Hasil
-  ditampilkan sebagai tabel teks dengan jumlah baris dan durasi.
-- **Kompatibilitas metadata MySQL (terbatas)**: `SHOW DATABASES`,
-  `SHOW TABLES [FROM db]`, `DESCRIBE`, `SHOW COLUMNS`, `SHOW CREATE TABLE`,
-  `SHOW INDEX`, `SELECT VERSION()` dan `SELECT DATABASE()` dijawab dari
-  metadata SQLite yang **nyata** (`sqlite_master`, `PRAGMA table_info`,
-  `PRAGMA index_list`). Perintah MySQL lain (`USE`, `SET`, `FLUSH`,
-  `SHOW STATUS`, `GRANT`, ...) ditolak dengan penjelasan dialect, alasan, dan
-  alternatifnya. Ini **bukan** dukungan MySQL penuh — detail:
+- **SQL console di terminal**: perintah `sql [schema]` masuk ke mode console
+  yang mengirim statement ke server MariaDB yang sama dengan SQL editor.
+  `.tables`, `.databases`, `.use`, `.read`, `.force on|off`, `.help` dan `\q`
+  (keluar) tersedia, ditambah perintah shell `mariadb status|start|stop|restart|
+  init|version|logs` yang melaporkan keadaan server apa adanya.
+- **Metadata dijawab server sendiri**: `SHOW DATABASES`, `SHOW TABLES`,
+  `DESCRIBE`, `SHOW CREATE TABLE`, `SHOW INDEX`, `SHOW STATUS`,
+  `SELECT VERSION()`, `GRANT`, `SET`, transaksi, view, trigger, procedure —
+  tidak ada lagi lapisan terjemahan ke SQLite. Klien tidak menerjemahkan SQL:
+  yang dikirim adalah yang dieksekusi MariaDB. Detail:
   [`docs/sql-editor.md`](docs/sql-editor.md).
 - **Tema & komponen 0.2**: palet hijau lembut (background `#101311`, accent
   `#9BCB91`), Material 3, tema gelap default + tema terang opsional, ukuran
@@ -98,14 +108,16 @@ artefak ada di tab [Actions](https://github.com/HOOOOOOQ/pallsql/actions).
   `PallSQLBottomNavigation`). Detail: [`docs/ui.md`](docs/ui.md).
 - **Loading screen aplikasi**: logo, nama, "Mobile Development Environment",
   progres langkah bootstrap sungguhan (workspace → konfigurasi → log → device →
-  PHP → SQLite → project → web server), dan layar gagal dengan tombol Retry
-  setelah batas waktu — bukan spinner tanpa akhir.
+  PHP → runtime MariaDB → server MariaDB → project → environment), dan layar
+  gagal dengan tombol Retry setelah batas waktu — bukan spinner tanpa akhir.
 - **Halaman About**: aplikasi, versi, package, developer **pallxXx**, tombol
   *Visit Instagram* yang membuka tautan lewat `url_launcher`, kredit & lisensi
-  (PHP, SQLite, MariaDB, paket Flutter, runtime native) tanpa klaim kepemilikan.
+  (PHP, MariaDB Server GPLv2 yang dibangun dari source, paket Flutter, runtime
+  native) tanpa klaim kepemilikan.
 - **Workspace lengkap** di satu folder `PALLSQL/`: `htdocs/ projects/
-  database/ config/ (php, server, queries) logs/ backups/ tmp/ extensions/
-  terminal/`. Path lengkap ditampilkan di Dashboard dan Settings; tombol buka
+  database/ (mariadb/data, data socket) config/ (php, server/mariadb.cnf,
+  server/mariadb.json, queries) logs/ (app.log, mariadb-error.log) backups/
+  tmp/ extensions/ terminal/`. Path lengkap ditampilkan di Dashboard dan Settings; tombol buka
   folder, export workspace ZIP, dan dokumentasi path nyata ada di
   [`docs/workspace.md`](docs/workspace.md).
 
@@ -116,7 +128,7 @@ artefak ada di tab [Actions](https://github.com/HOOOOOOQ/pallsql/actions).
 | UI tema gelap + Material 3 | Selesai | Komponen reusable: `PallSQLAppBar`, `ServerStatusCard`, `ServiceControlButton`, `TerminalOutput`, `DatabaseCard`, `ProjectCard`, `LogViewer`, `CodeEditorPanel`, `PALLSQLBottomNavigation` |
 | HTTP server lokal | Selesai | Static file, MIME, 404/403/405/500, `Content-Length` persis, HTML `no-store`, ETag isi file, 304 hanya saat validator cocok, request log, port conflict, path traversal |
 | SQL editor mandiri | Selesai | `SqlEditorPage`: pilih database, Execute/Clear, hasil + jumlah baris, error, riwayat, pembuatan database |
-| SQLite | Selesai | sqflite (Android) / sqflite_common_ffi (test) |
+| **Engine database** | **MariaDB Server 10.11.9** | Satu-satunya engine; `libmariadbd.so` dibangun dari source di CI lalu dibundel dalam APK |
 | File manager | Selesai | Sandboxed ke `PALLSQL/` |
 | Code editor | Selesai | Highlight ringan, bukan IntelliSense/parser penuh |
 | Project manager | Selesai | ZIP export/import aman |
@@ -124,12 +136,13 @@ artefak ada di tab [Actions](https://github.com/HOOOOOOQ/pallsql/actions).
 | Log viewer | Selesai | Filter + export |
 | Terminal terbatas | Selesai | Registry perintah, bukan shell |
 | SQL console di terminal | Selesai | Mode `sql`, dot command, hasil tabel teks |
-| Kompatibilitas metadata MySQL | Sebagian (metadata) | Hanya perintah metadata yang bisa dipetakan ke SQLite; sisanya ditolak dengan alasan |
+| Klien protokol MariaDB | Selesai (teruji di CI) | `SELECT VERSION()`, `SHOW DATABASES`, DDL/DML, prepared statement, multi-statement, error packet — diuji ke server MariaDB sungguhan di GitHub Actions |
+| Migrasi data SQLite lama | Ada, opt-in | Tab Database → *Legacy SQLite data*: scan `PALLSQL/database/*.db`, import ke schema MariaDB, berkas asli tidak dihapus |
 | Tema gelap/terang + ukuran teks | Selesai | Palet 0.2, Material 3, tanpa gradient berat |
 | Loading screen + Retry | Selesai | Langkah bootstrap nyata, timeout, tanpa spinner tanpa akhir |
 | Halaman About | Selesai | Developer, Instagram, kredit & lisensi |
 | **Runtime PHP** | **Belum tersedia** | Request `.php` → HTTP 501; desain plugin `PhpBridge` siap dipasangi `php-cgi` native |
-| **MariaDB** | **Belum tersedia** | `MariaDbEngine` hanya melaporkan "unavailable"; tidak ada klaim MySQL |
+| **MariaDB di perangkat** | **Belum diuji di perangkat** | Binary sudah dibangun dan dipaketkan (CI hijau, `libmariadbd.so` ada di dalam APK), tetapi belum pernah dijalankan di HP/emulator. Kalau runtime tidak ada, aplikasi menampilkan *Not installed* dengan path yang diperiksa — tidak pernah `Running` palsu |
 | Foreground service Android | Implementasi ada | Notification + `foregroundServiceType=dataSync`; lihat batasan Android |
 
 ## Tangkapan layar
@@ -142,8 +155,11 @@ sini; kami tidak menambahkan mockup sebagai pengganti bukti.
 
 - Flutter 3.47.8 (stable), Dart 3.6+
 - `flutter_riverpod` 2.6 sebagai satu-satunya state management
-- `sqflite` + `sqflite_common` (engine SQLite), `archive` (ZIP), `path`,
-  `path_provider`, `url_launcher`
+- `flutter_riverpod` + `archive` (ZIP), `path`, `path_provider`,
+  `url_launcher`; `sqflite_common_ffi` hanya dipakai oleh test dan
+  `sqflite` hanya oleh pembaca data SQLite lama (read-only)
+- Klien MariaDB ditulis sendiri di `lib/services/mariadb/` (tanpa
+  Connector/C, tanpa paket protokol pihak ketiga)
 - Android native: Kotlin (`MainActivity`, `PallsqlForegroundService`), method
   channel `com.pallsql.mobile/native`
 - AGP 9.1.0, Gradle 9.3.1, Kotlin 2.4.0, compileSdk 36, minSdk 24, targetSdk 36
@@ -159,7 +175,7 @@ lib/
     utils/        PathGuard, Validators, Formatters, SqlUtils
   models/         ServiceStatus, LogEntry, Project, DatabaseModels,
                   AppSettings, FileEntry, BackupInfo
-  repositories/   Log, Settings, Database (SQLite), File, Project
+  repositories/   Log, Settings, Database (MariaDB), File, Project
   services/       WebServerService, PhpRuntimeService, BackupService,
                   TerminalService, WorkspaceService, NativeBridge,
                   AppBootstrap, MimeTypes, LinkOpener, SqlCompatibility,
@@ -189,9 +205,8 @@ docs/             architecture, http-server, sql-editor, ui, workspace,
   tab hasil & pesan, copy/export CSV, mode fullscreen.
 - **Terminal**: SQL console nyata (`sql [database]`, dot command, `\q`) dan
   perintah baru `use`, `tables`, `desc`, `run`, `storage`, `version`.
-- **Kompatibilitas metadata MySQL** yang jujur: hanya perintah metadata yang
-  bisa dipetakan ke metadata SQLite; sisanya ditolak dengan alasan dan
-  alternatif.
+- **Metadata tidak lagi diterjemahkan**: `SHOW ...`, `DESCRIBE`,
+  `SELECT VERSION()` dijawab oleh MariaDB yang berjalan di perangkat.
 - **Halaman About** dengan developer, tautan Instagram yang berfungsi, kredit &
   lisensi.
 - **CI**: laporan kegagalan kini menyebut nama test yang gagal beserta konteks
@@ -287,13 +302,27 @@ perangkat benar-benar dibundel dan diuji, fitur PHP tetap berstatus
 
 ## Dukungan database
 
-- **SQLite — tersedia.** Database berupa file `.db` di `PALLSQL/database`,
-  diakses lewat sqflite. Nama database divalidasi, `ATTACH`/`DETACH` ditolak,
-  dan pernyataan destruktif (`DROP`, `DELETE`/`UPDATE` tanpa `WHERE`) harus
-  dikonfirmasi lebih dulu.
-- **MariaDB — tidak tersedia.** Tidak ada server MariaDB/MySQL di dalam build
-  ini dan UI tidak pernah menyebut SQLite sebagai MariaDB. `MariaDbEngine`
-  hanya mengembalikan status `unavailable` beserta alasannya.
+- **MariaDB Server adalah satu-satunya engine.** Server `mariadbd` 10.11.9
+  dibangun dari source MariaDB resmi di CI
+  (`.github/workflows/mariadb-android.yml`), divalidasi `readelf` sebagai
+  AArch64, di-strip, lalu dipaketkan sebagai
+  `jniLibs/arm64-v8a/libmariadbd.so` + aset bootstrap SQL/charset/pesan error.
+  Aplikasi menjalankan binary itu lewat `MariaDbProcessManager.kt`, menginisialisasi
+  data directory sekali, dan berkomunikasi lewat klien protokol MariaDB sendiri
+  (`lib/services/mariadb/`).
+- **Tidak ada fallback.** Kalau runtime tidak ada atau gagal start, aplikasi
+  menampilkan *Not installed* / pesan error dengan path yang diperiksa. Tidak
+  ada SQLite, tidak ada database cloud, tidak ada hasil query palsu.
+- **SQLite hanya tersisa sebagai pembaca data lama.** Berkas `.db` dari versi
+  0.1/0.2 dapat dipindai (read-only) lewat tab Database → *Legacy SQLite data*
+  dan disalin ke schema MariaDB atas permintaan pengguna; berkas asli tidak
+  pernah dihapus otomatis.
+- **Konfigurasi server di UI**: port 3306, bind `127.0.0.1` (LAN harus
+  diaktifkan eksplisit), Unix socket, charset/collation, `max_connections`,
+  buffer pool/InnoDB log, akun admin. Nilai disimpan di
+  `PALLSQL/config/server/mariadb.json` (chmod 600) dan ditulis ke
+  `mariadb.cnf`; password tidak pernah masuk log.
+- **Detail teknis lengkap**: [`docs/mariadb-android.md`](docs/mariadb-android.md).
 
 ## Keamanan local server
 
@@ -330,12 +359,16 @@ perangkat benar-benar dibundel dan diuji, fitur PHP tetap berstatus
 | Dashboard tetap "Stopped" setelah start | Bind gagal / proses dimatikan OS | Cek log WEB di tab Logs |
 | `flutter build apk` gagal di Gradle wrapper | `gradlew` tidak di-commit | CI membuat ulang; lokal: `flutter create --platforms=android .` di folder sementara lalu copy `gradlew` |
 | Test gagal dengan `databaseFactory not initialized` | FFI belum di-init | Sudah ditangani `sqfliteFfiInit()` di `test/support/test_bootstrap.dart` |
+| MariaDB *Not installed* di aplikasi | APK dibangun tanpa artefak runtime native | Jalankan workflow **MariaDB Android runtime**, lalu build ulang APK (CI mengambil artefak terakhir yang sukses) |
+| Test integrasi MariaDB di-skip | `PALLSQL_MARIADB_IT` tidak di-set | CI menyalakan server sungguhan; lokal: jalankan `mariadb-server` lalu set variabel itu |
 
 ## Lisensi runtime
 
 - Kode PALLSQL: MIT (lihat [LICENSE](LICENSE)).
 - Flutter/Dart: BSD-3-Clause.
-- sqflite: BSD-2-Clause; SQLite: Public Domain.
+- MariaDB Server: GPLv2, dibangun dari source resmi (versi, sha256 dan
+  ringkasan build tercatat di artefak `native/report/mariadb-build.md`).
+- sqflite: BSD-2-Clause; SQLite: Public Domain (hanya untuk membaca data lama).
 - archive (Dart): MIT.
 - url_launcher, path, path_provider: BSD-3-Clause.
 - Runtime PHP (bila nanti dibundel) akan mengikuti PHP License 3.01 beserta
@@ -348,18 +381,28 @@ perangkat benar-benar dibundel dan diuji, fitur PHP tetap berstatus
 
 PALLSQL is an offline, Android-only, XAMPP-like web development environment
 written in Flutter/Dart with a thin Kotlin host layer. It runs a real local
-HTTP server, a real SQLite engine, a sandboxed file manager and editor, project
-templates with safe ZIP import/export, ZIP backups, structured logs and a
-restricted command registry instead of a shell.
+HTTP server and a real **MariaDB Server 10.11.9** that is cross compiled from
+the official source with the Android NDK and shipped inside the APK, plus a
+sandboxed file manager and editor, project templates with safe ZIP
+import/export, ZIP backups, structured logs and a restricted command registry
+instead of a shell.
 
 **What actually works today:** static site hosting on `127.0.0.1:8080`
-(configurable), path-traversal and symlink protection, SQLite databases with
-query history, file management inside `PALLSQL/`, code editing, project and
-backup management, log filtering/export, restricted terminal.
+(configurable), path-traversal and symlink protection, SQL editor and SQL
+console that speak the MariaDB wire protocol to that server, consistent
+snapshot backups, file management inside `PALLSQL/`, code editing, project and
+backup management, log filtering/export, restricted terminal, opt-in import of
+legacy SQLite files.
+
+**Verified in CI, not on a phone:** the native build produces an AArch64
+`libmariadbd.so` (validated with `readelf`, stripped, packaged in the APK), and
+the Dart protocol client is tested against a real MariaDB server in GitHub
+Actions. **Nothing has been run on a physical device or emulator yet**, so the
+app shows the runtime state it can actually prove.
 
 **What is not implemented:** a PHP interpreter (requests to `.php` return
-`501` with an explanation and never leak source) and MariaDB. No fake status
-indicators: every service state comes from the real runtime.
+`501` with an explanation and never leak source). No fake status indicators:
+every service state comes from the real runtime.
 
 CI (`.github/workflows/android.yml`) builds a debug and a release APK on every
 push to `main` and uploads them as the `PALLSQL-Android-APK` artifact. Tagging
