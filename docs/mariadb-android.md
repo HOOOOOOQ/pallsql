@@ -150,13 +150,16 @@ mengunduh artifact log.
 | Klien protokol (handshake, text protocol, prepared statement, error packet) | **Teruji otomatis** terhadap server MariaDB sungguhan di CI (`test/mariadb_integration_test.dart`) |
 | Repository SQL (CREATE DATABASE, USE, DDL, INSERT/SELECT/UPDATE/DELETE, multi-statement, DESCRIBE, SHOW CREATE TABLE) | **Teruji otomatis** terhadap server sungguhan |
 | Migrasi data SQLite lama | Kode ada; pengujian memakai berkas `.db` contoh |
-| `MariaDBServiceManager` + `MariaDbProcessManager.kt` | Kode ada; **belum dijalankan di perangkat** karena binary Android belum dibangun |
-| `libmariadbd.so` untuk arm64 | **Belum tersedia** — workflow build native sudah melewati configure, host tools, dan lanjut ke kompilasi `mariadbd`; hasil terakhir dicatat di tab Actions |
+| `MariaDBServiceManager` + `MariaDbProcessManager.kt` | Kode lengkap dan lolos analyzer; **belum dijalankan di perangkat** — langkah 1-9 acceptance (init data dir, start/stop, `SELECT VERSION()`, dst.) masih menunggu uji perangkat |
+| `libmariadbd.so` untuk arm64 | **Dibangun di CI** — run `40990066614` sukses: configure, host tools, kompilasi `mariadbd`, validasi `readelf` (AArch64), strip, paket aset, artifact `mariadb-runtime-arm64-v8a` |
+| Runtime benar-benar ikut ke APK | **Terbukti** — job APK mengambil artifact itu lewat REST API, `Verify APK artifacts` memeriksa isi APK, dan build **gagal** kalau artifact tersedia tetapi `libmariadbd.so` tidak ada di APK |
+| Server berjalan di perangkat | **Belum diuji** — belum ada perangkat/emulator. `MariaDBServiceManager` hanya melaporkan `Running` setelah koneksi protokol sungguhan berhasil |
 | PHP ↔ MariaDB | Belum diuji; runtime PHP belum tersedia |
 
-Sampai baris "libmariadbd.so" berstatus tersedia, aplikasi menampilkan
-**Not installed** beserta path yang diperiksa dan alasan ABI. Tidak ada status
-`Running` palsu.
+Kalau APK dibangun tanpa artifact runtime (misalnya workflow native belum pernah
+sukses di branch itu), aplikasi menampilkan **Not installed** beserta path yang
+diperiksa dan alasan ABI. Status `Running` hanya muncul setelah `COM_PING` /
+`SELECT VERSION()` benar-benar dijawab server.
 
 ## 7. Data pengguna lama
 
