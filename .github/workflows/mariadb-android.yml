@@ -256,6 +256,8 @@ jobs:
             -DWITHOUT_TOKUDB=ON \
             -DWITHOUT_TOKUDB_TOOLS=ON \
             -DWITH_INNOBASE_STORAGE_ENGINE=ON \
+            -DWITH_MYISAM_STORAGE_ENGINE=OFF \
+            -DPLUGIN_MYISAMMRG=NO \
             -DWITH_ARCHIVE_STORAGE_ENGINE=OFF \
             -DWITH_BLACKHOLE_STORAGE_ENGINE=OFF \
             -DWITH_FEDERATED_STORAGE_ENGINE=OFF \
@@ -363,9 +365,11 @@ jobs:
       - name: Build mariadbd
         run: |
           set -euo pipefail
-          ninja -C native/build mariadbd 2>&1 | tee native/build-make.log || {
-            echo "::error::The mariadbd build failed; the compiler errors follow."
-            grep -m2 -A3 -E "error:|Error [0-9]" native/build-make.log | head -10 | while IFS= read -r line; do
+          # -k keeps ninja going after a failure so a single run reports every
+          # independent problem instead of one per push.
+          ninja -C native/build -k 0 mariadbd 2>&1 | tee native/build-make.log || {
+            echo "::error::The mariadbd build failed; distinct compiler errors follow."
+            grep -E "error:" native/build-make.log | sort -u | head -8 | while IFS= read -r line; do
               [ -n "$line" ] && echo "::error::$line"
             done
             exit 1
