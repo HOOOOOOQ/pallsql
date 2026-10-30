@@ -148,6 +148,37 @@ jobs:
           echo "Collected $(wc -l < /tmp/changed.txt) formatted file(s)."
           cat /tmp/changed.txt
 
+      # The patch is also published as annotations: artifacts cannot always be
+      # downloaded from a sandbox, and the diff is small and mechanical.
+      - name: Publish the formatting diff
+        if: failure()
+        run: |
+          set -uo pipefail
+          [ -s /tmp/changed.txt ] || exit 0
+          git diff > /tmp/format.diff || true
+          [ -s /tmp/format.diff ] || exit 0
+          python3 - <<'PY'
+          import pathlib
+
+          text = pathlib.Path("/tmp/format.diff").read_text()
+          chunks, current, size = [], [], 0
+          for line in text.splitlines(True):
+              if size + len(line) > 35000:
+                  chunks.append("".join(current))
+                  current, size = [], 0
+              current.append(line)
+              size += len(line)
+          if current:
+              chunks.append("".join(current))
+          for index, chunk in enumerate(chunks[:8]):
+              encoded = (
+                  chunk.replace("%", "%25")
+                  .replace("\r", "")
+                  .replace("\n", "%0A")
+              )
+              print(f"::error title=format diff {index + 1}/{len(chunks)}::{encoded}")
+          PY
+
       # Commits the canonical formatting back to the branch. If the token
       # cannot push, the exact patch is published as a PR comment so it can be
       # applied with `git apply` instead of being reproduced by hand.
