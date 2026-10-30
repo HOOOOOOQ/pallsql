@@ -117,96 +117,10 @@ jobs:
       - name: Patch the unportable platform probes
         run: |
           set -euo pipefail
-          python3 - "$SOURCE_DIR" <<'PY'
-          import pathlib
-          import sys
-
-          root = pathlib.Path(sys.argv[1])
-
-
-          def patch(relative, old, new, expected=1):
-              path = root / relative
-              text = path.read_text()
-              if text.count(old) != expected:
-                  raise SystemExit(
-                      f"{relative}: expected {expected} occurrence(s) of {old!r}"
-                  )
-              path.write_text(text.replace(old, new))
-              print(f"patched {relative}")
-
-
-          # 1. mariadbd never links readline and the NDK ships no ncurses for
-          #    the target ABI, so the unconditional curses probe is skipped.
-          patch(
-              "CMakeLists.txt",
-              "MYSQL_CHECK_READLINE()",
-              "# PALLSQL Android port: no ncurses in the NDK, mariadbd does not\n"
-              "# link readline, so the probe is skipped for this build.\n"
-              "IF(NOT ANDROID)\n  MYSQL_CHECK_READLINE()\nENDIF()",
-          )
-
-          # 2. MRG_MyISAM is declared MANDATORY upstream, so the plugin cannot be
-          #    switched off with a CMake option. PALLSQL ships InnoDB + Aria
-          #    only, and `myrg_static.c` does not compile against this sysroot,
-          #    so the plugin is left out of the build entirely.
-          myrg = root / "storage/myisammrg/CMakeLists.txt"
-          text = myrg.read_text()
-          plugin = (
-              "MYSQL_ADD_PLUGIN(myisammrg ${MYISAMMRG_SOURCES} STORAGE_ENGINE "
-              "MANDATORY RECOMPILE_FOR_EMBEDDED)"
-          )
-          if plugin not in text:
-              raise SystemExit("the myisammrg plugin line changed upstream")
-          myrg.write_text(
-              text.replace(
-                  plugin,
-                  "# PALLSQL Android port: MRG_MyISAM is not shipped on the phone.\n"
-                  "# " + plugin,
-                  1,
-              )
-          )
-          print("patched storage/myisammrg/CMakeLists.txt")
-
-          # 3. The bundled PCRE2 is an ExternalProject that only forwards
-          #    CMAKE_C_COMPILER. With the NDK that is the generic `clang`, whose
-          #    default target is the host, so pcre2 was compiled for x86-64 and
-          #    the final link failed with "incompatible with aarch64linux". The
-          #    ExternalProject now receives the same toolchain file and the ABI
-          #    and platform arguments as the outer build.
-          pcre = root / "cmake/pcre.cmake"
-          text = pcre.read_text()
-          compiler_line = '      "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"\n'
-          if compiler_line not in text:
-              raise SystemExit("the pcre2 CMake args changed upstream")
-          text = text.replace(
-              compiler_line,
-              compiler_line
-              + '      "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}"\n'
-              + '      "-DANDROID_ABI=${ANDROID_ABI}"\n'
-              + '      "-DANDROID_PLATFORM=${ANDROID_PLATFORM}"\n',
-              1,
-          )
-          pcre.write_text(text)
-          print("patched cmake/pcre.cmake")
-
-          # 3. With the bundled wolfSSL the Connector/C TLS backend is forced to
-          #    GnuTLS on every non-Windows system ("that's what debian wants").
-          #    PALLSQL ships no Connector/C and talks to the server itself over
-          #    loopback, so the Android build configures the client library
-          #    without a TLS backend instead of pulling a host GnuTLS into a
-          #    cross build.
-          patch(
-              "cmake/mariadb_connector_c.cmake",
-              '    SET(CONC_WITH_SSL "GNUTLS") # that\'s what debian wants, right?',
-              "    IF(ANDROID)\n"
-              '      SET(CONC_WITH_SSL "OFF")\n'
-              "    ELSE()\n"
-              '      SET(CONC_WITH_SSL "GNUTLS")\n'
-              "    ENDIF()",
-          )
-          PY
+          python3 native/patches/apply_android_patches.py "$SOURCE_DIR"
           grep -n -A2 "IF(NOT ANDROID)" "$SOURCE_DIR/CMakeLists.txt"
-          grep -n -A4 'CONC_WITH_SSL "OFF"' "$SOURCE_DIR/cmake/mariadb_connector_c.cmake"
+          grep -n "MRG_MyISAM is not shipped" "$SOURCE_DIR/storage/myisammrg/CMakeLists.txt"
+          grep -n -A3 "CMAKE_TOOLCHAIN_FILE" "$SOURCE_DIR/cmake/pcre.cmake"
 
       # Cross compiling MariaDB needs a handful of host tools (comp_err,
       # uca-dump, gen_lex_hash, gen_lex_token ...). They are built once natively
