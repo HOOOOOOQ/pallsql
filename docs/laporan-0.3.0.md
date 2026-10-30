@@ -144,17 +144,17 @@ tercatat di `native/patches/apply_android_patches.py`:
 
 | Workflow | Run | Hasil |
 | --- | --- | --- |
-| MariaDB Android runtime | `40990066614` | **sukses** — configure, host tools, build `mariadbd`, validasi AArch64, strip, paket aset, upload artifact |
-| MariaDB Android runtime | `40991318766` | **sukses** — build yang artifact-nya dipakai APK terakhir |
-| Android CI (Analyze and test) | `40991318772` | **sukses** — `flutter analyze` tanpa issue, seluruh test lulus (server MariaDB sungguhan dinyalakan CI), `dart format` bersih |
-| Android CI (Build APKs) | `40991318772` | **sukses** — debug + release APK, runtime native diambil lewat REST API dan diverifikasi ada di dalam APK |
+| MariaDB Android runtime | `40990066614` | **sukses** — build `mariadbd` penuh: configure, host tools, kompilasi, validasi AArch64, strip, paket aset, upload artifact |
+| MariaDB Android runtime | `40991906330` | **sukses** — build yang artifact-nya dipakai APK terakhir (`commit a86a473`) |
+| Android CI — Analyze and test | `40992656414` | **sukses** — `flutter analyze` tanpa issue, seluruh test lulus (server MariaDB sungguhan dinyalakan CI), `dart format` bersih |
+| Android CI — Build APKs | `40992656414` | **sukses** — debug + release APK, runtime native diambil lewat REST API, isi APK diverifikasi (`.so` + aset bootstrap) |
 
 Catatan penting: test integrasi MariaDB **tidak** di-skip di CI. Job gagal kalau
 suite itu tidak jalan (`SKIPPED: set PALLSQL_MARIADB_IT`).
 
 ---
 
-## 5. Ukuran APK (dari artifact run `40991906322`)
+## 5. Ukuran APK (dari artifact run `40992656414`)
 
 | APK | Ukuran | Runtime MariaDB di dalamnya |
 | --- | --- | --- |
