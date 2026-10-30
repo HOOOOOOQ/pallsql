@@ -30,8 +30,10 @@ permissions:
 
 env:
   MARIADB_VERSION: ${{ github.event.inputs.mariadb_version || '10.11.9' }}
-  # Official source archive; the checksum is verified before anything is built.
-  MARIADB_SHA256: "4e0e4d9a6dc7b0c4ba49b9e6b4c13b8f5e7d21c9a1b1d7a0f5f9d2d0c9b1a6e4"
+  # SHA-256 of the source archive. Empty means "not pinned yet": the workflow
+  # then only *records* the observed hash in the build report. Set it to turn
+  # the download into a hard verification that fails on mismatch.
+  MARIADB_SHA256: ""
   NDK_VERSION: "27.0.12077973"
   ANDROID_API: "24"
   TARGET_ABIS: "arm64-v8a"
@@ -97,8 +99,11 @@ jobs:
           actual="$(sha256sum /tmp/mariadb.tar.gz | cut -d' ' -f1)"
           echo "sha256=$actual"
           echo "$actual" > native/src/SOURCE_SHA256.txt
-          if [ "$actual" != "$MARIADB_SHA256" ]; then
-            echo "::warning::MARIADB_SHA256 does not match the downloaded archive (expected $MARIADB_SHA256, got $actual). The archive hash is recorded in the build report instead of being silently trusted."
+          if [ -z "${MARIADB_SHA256}" ]; then
+            echo "::warning::MARIADB_SHA256 is not pinned; this run records sha256=$actual in the build report. Pin the value to make the download verifiable."
+          elif [ "$actual" != "$MARIADB_SHA256" ]; then
+            echo "::error::The MariaDB source archive does not match MARIADB_SHA256 (expected $MARIADB_SHA256, got $actual)."
+            exit 1
           else
             echo "Source checksum matches the pinned MARIADB_SHA256."
           fi
@@ -421,6 +426,8 @@ jobs:
             echo "# MariaDB Android build report"
             echo
             echo "- MariaDB source: ${MARIADB_VERSION}"
+            echo "- Source sha256: $(cat native/src/SOURCE_SHA256.txt 2>/dev/null || echo unknown)"
+            echo "- Pinned sha256: ${MARIADB_SHA256:-not pinned}"
             echo "- ABI: arm64-v8a"
             echo "- NDK: ${NDK_VERSION}"
             echo "- Android API level: ${ANDROID_API}"
