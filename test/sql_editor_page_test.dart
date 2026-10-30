@@ -31,7 +31,10 @@ void main() {
   });
 
   tearDown(() async {
-    await dropScratchSchema(bootstrap, schema);
+    // The schema is deliberately *not* dropped here: tearDown of a widget test
+    // still runs inside the fake async zone, where a real socket call never
+    // completes and the suite would hang. Every test allocates a unique schema
+    // name instead, and the CI server is thrown away after the run.
     await disposeTestBootstrap(bootstrap);
   });
 
