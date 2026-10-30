@@ -362,11 +362,28 @@ jobs:
       - name: Strip the binary
         run: |
           set -euo pipefail
-          strip_bin="$(find "$NDK_ROOT/toolchains/llvm/prebuilt" -name 'llvm-strip' -type f | head -1)"
+          echo "NDK_ROOT=${NDK_ROOT:-unset} BINARY=${BINARY:-unset}"
+          strip_bin=""
+          for candidate in \
+            "$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" \
+            "$NDK_ROOT/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-strip"; do
+            if [ -x "$candidate" ]; then
+              strip_bin="$candidate"
+              break
+            fi
+          done
+          if [ -z "$strip_bin" ]; then
+            strip_bin="$(find "$NDK_ROOT" -type f -name 'llvm-strip*' 2>/dev/null | head -1)"
+          fi
           before="$(stat -c%s "$BINARY")"
-          "$strip_bin" --strip-unneeded "$BINARY"
+          if [ -n "$strip_bin" ] && [ -x "$strip_bin" ]; then
+            "$strip_bin" --strip-unneeded "$BINARY"
+            echo "stripped with $strip_bin"
+          else
+            echo "::warning::No llvm-strip in the NDK image; the APK will carry debug symbols."
+          fi
           after="$(stat -c%s "$BINARY")"
-          echo "stripped $BINARY: ${before} -> ${after} bytes"
+          echo "binary size: ${before} -> ${after} bytes"
           file "$BINARY"
           echo "SIZE_BYTES=$after" >> "$GITHUB_ENV"
 
