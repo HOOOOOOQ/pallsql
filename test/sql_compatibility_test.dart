@@ -17,7 +17,8 @@ void main() {
     });
 
     test('ATTACH/DETACH stay blocked for workspace safety', () {
-      expect(SqlDialect.isBlockedForSafety('ATTACH DATABASE "x" AS y;'), isTrue);
+      expect(
+          SqlDialect.isBlockedForSafety('ATTACH DATABASE "x" AS y;'), isTrue);
       expect(SqlDialect.isBlockedForSafety('detach database y'), isTrue);
       expect(SqlDialect.isBlockedForSafety('SELECT 1'), isFalse);
     });

@@ -212,7 +212,6 @@ class AboutPage extends ConsumerWidget {
                   note: 'Not bundled. A PHP runtime you install keeps its own '
                       'license (PHP License 3.01).',
                 ),
-
                 const SizedBox(height: 10),
                 PallSQLButton(
                   label: 'Open source licenses',

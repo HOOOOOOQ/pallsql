@@ -55,7 +55,9 @@ class MariaDbConfig {
   final String host;
 
   bool get isLoopbackOnly =>
-      bindAddress == '127.0.0.1' || bindAddress == 'localhost' || bindAddress == '::1';
+      bindAddress == '127.0.0.1' ||
+      bindAddress == 'localhost' ||
+      bindAddress == '::1';
 
   MariaDbConfig copyWith({
     int? port,

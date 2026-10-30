@@ -68,7 +68,8 @@ class _LegacyDataCardState extends ConsumerState<LegacyDataCard> {
     final bool confirmed = await showConfirmDialog(
       context: context,
       title: 'Import ${legacy.name}?',
-      message: 'PALLSQL reads ${legacy.path} (${legacy.tables.length} table(s)) '
+      message:
+          'PALLSQL reads ${legacy.path} (${legacy.tables.length} table(s)) '
           'and copies the rows into a new MariaDB schema named '
           '"${legacy.targetSchema}". The original file is kept untouched - no '
           'data is deleted.',

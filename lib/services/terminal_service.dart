@@ -6,8 +6,7 @@ import '../models/database_models.dart';
 import '../models/file_entry.dart';
 import '../models/log_entry.dart';
 import '../models/project.dart';
-import '../repositories/database_repository.dart'
-    show MariaDbRepository;
+import '../repositories/database_repository.dart' show MariaDbRepository;
 import 'mariadb/mariadb_service.dart';
 import 'php_runtime_service.dart';
 import 'web_server_service.dart';
@@ -961,7 +960,9 @@ class TerminalService {
           final bool found = await selectDatabase(args[1]);
           return TerminalResult(<TerminalLine>[
             TerminalLine(
-              found ? 'Using schema ${args[1]}' : 'Unknown database: ${args[1]}',
+              found
+                  ? 'Using schema ${args[1]}'
+                  : 'Unknown database: ${args[1]}',
               level: found ? LogLevel.info : LogLevel.error,
             ),
           ]);
@@ -1012,7 +1013,8 @@ class TerminalService {
       usage: 'mariadb status|start|stop|restart|version|logs|init',
       description: 'Control the native MariaDB server process',
       run: (TerminalApi api, List<String> args) async {
-        final String action = args.isEmpty ? 'status' : args.first.toLowerCase();
+        final String action =
+            args.isEmpty ? 'status' : args.first.toLowerCase();
         switch (action) {
           case 'status':
             final MariaDbStatus status = api.mariaDbStatus;
@@ -1058,16 +1060,16 @@ class TerminalService {
                     ? 'MariaDB ${availability.version ?? 'unknown'}'
                     : 'MariaDB is not available: '
                         '${availability.reason ?? 'unknown reason'}',
-                level: availability.available
-                    ? LogLevel.info
-                    : LogLevel.warning,
+                level:
+                    availability.available ? LogLevel.info : LogLevel.warning,
               ),
             ]);
           case 'logs':
             final String log = await api.mariaDbLogTail();
             return TerminalResult(<TerminalLine>[
-              for (final String line
-                  in log.isEmpty ? const <String>['(no log yet)'] : log.split('\n'))
+              for (final String line in log.isEmpty
+                  ? const <String>['(no log yet)']
+                  : log.split('\n'))
                 TerminalLine(line),
             ]);
           default:

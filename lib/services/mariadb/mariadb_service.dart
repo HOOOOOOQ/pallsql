@@ -232,7 +232,8 @@ class MariaDBServiceManager {
     return created;
   }
 
-  String get dataDirectory => p.join(workspaceRoot, 'database', 'mariadb', 'data');
+  String get dataDirectory =>
+      p.join(workspaceRoot, 'database', 'mariadb', 'data');
 
   String get runtimeDirectory => p.join(workspaceRoot, 'database', 'mariadb');
 
@@ -325,8 +326,7 @@ class MariaDBServiceManager {
 
   /// Asks the native layer which binaries are packaged for this ABI.
   Future<MariaDbRuntimeInfo> refreshRuntime() async {
-    final Map<String, Object?>? raw =
-        await native.mariaDbRuntimeInfo();
+    final Map<String, Object?>? raw = await native.mariaDbRuntimeInfo();
     if (raw == null) {
       _runtime = const MariaDbRuntimeInfo(
         installed: false,
@@ -338,10 +338,10 @@ class MariaDBServiceManager {
       );
       return _runtime;
     }
-    final List<String> support = (raw['supportBinaries'] as List<Object?>? ??
-            const <Object?>[])
-        .map((Object? value) => value.toString())
-        .toList(growable: false);
+    final List<String> support =
+        (raw['supportBinaries'] as List<Object?>? ?? const <Object?>[])
+            .map((Object? value) => value.toString())
+            .toList(growable: false);
     final List<String> abies =
         (raw['abies'] as List<Object?>? ?? const <Object?>[])
             .map((Object? value) => value.toString())
@@ -450,7 +450,8 @@ class MariaDBServiceManager {
       return false;
     }
     _busy = true;
-    _set(MariaDbRuntimeState.initializing, 'Preparing the MariaDB data directory');
+    _set(MariaDbRuntimeState.initializing,
+        'Preparing the MariaDB data directory');
     try {
       await Directory(dataDirectory).create(recursive: true);
       await Directory(p.join(workspaceRoot, 'logs')).create(recursive: true);
@@ -518,7 +519,8 @@ class MariaDBServiceManager {
       if (!ready) {
         return false;
       }
-      _set(MariaDbRuntimeState.starting, 'Starting mariadbd on port ${_config.port}');
+      _set(MariaDbRuntimeState.starting,
+          'Starting mariadbd on port ${_config.port}');
       final List<String> problems = _config.validate();
       if (problems.isNotEmpty) {
         _set(MariaDbRuntimeState.error, problems.join('; '));
@@ -637,9 +639,7 @@ class MariaDBServiceManager {
       _client = null;
       final bool ok = result?['ok'] == true;
       _set(
-        ok
-            ? MariaDbRuntimeState.stopped
-            : MariaDbRuntimeState.error,
+        ok ? MariaDbRuntimeState.stopped : MariaDbRuntimeState.error,
         ok
             ? (closedCleanly
                 ? 'MariaDB stopped (clean shutdown)'

@@ -435,8 +435,7 @@ class MariaDbRepository implements DatabaseRepository {
       lastInsertRowId: insertId,
       notices: <String>[
         ...notices,
-        'Engine: MariaDB ${_client.serverVersion ?? ''}'
-            .trim(),
+        'Engine: MariaDB ${_client.serverVersion ?? ''}'.trim(),
         'Database: $database',
       ],
       error: error == null ? null : _describeError(error),
@@ -523,8 +522,7 @@ class MariaDbRepository implements DatabaseRepository {
     if (values.isEmpty) {
       throw const ValidationFailure('No column values provided');
     }
-    final String columns =
-        values.keys.map(quoteIdentifier).join(', ');
+    final String columns = values.keys.map(quoteIdentifier).join(', ');
     final String placeholders = values.keys.map((String _) => '?').join(', ');
     return _parameterised(
       database,
@@ -595,7 +593,8 @@ class MariaDbRepository implements DatabaseRepository {
   // -------------------------------------------------------------------
 
   @override
-  Future<String> exportSql(String database, {int maxRowsPerTable = 20000}) async {
+  Future<String> exportSql(String database,
+      {int maxRowsPerTable = 20000}) async {
     final String safe = _guardedDatabase(database);
     await _use(safe);
     final StringBuffer buffer = StringBuffer()
@@ -638,8 +637,7 @@ class MariaDbRepository implements DatabaseRepository {
       final QueryResult rows =
           await selectRows(safe, table, limit: maxRowsPerTable);
       if (rows.error == null && rows.rows.isNotEmpty) {
-        final String columnList =
-            rows.columns.map(quoteIdentifier).join(', ');
+        final String columnList = rows.columns.map(quoteIdentifier).join(', ');
         for (final List<String?> cells in rows.rows) {
           final String values = cells.map(_literalFor).join(', ');
           buffer.writeln(
@@ -686,7 +684,8 @@ class MariaDbRepository implements DatabaseRepository {
         .toIso8601String()
         .replaceAll(RegExp(r'[:.]'), '-')
         .substring(0, 19);
-    final File target = File(p.join(targetDirectory.path, '${safe}_$stamp.sql'));
+    final File target =
+        File(p.join(targetDirectory.path, '${safe}_$stamp.sql'));
     await target.writeAsString(dump, flush: true);
     _logs.info(
       LogSource.backup,
@@ -707,7 +706,8 @@ class MariaDbRepository implements DatabaseRepository {
       throw const ValidationFailure('The dump file is empty');
     }
     if (await _isEmptySchema(safe)) {
-      await _client.query('CREATE DATABASE IF NOT EXISTS ${quoteIdentifier(safe)}');
+      await _client
+          .query('CREATE DATABASE IF NOT EXISTS ${quoteIdentifier(safe)}');
     }
     await _use(safe);
     final MariaDbBatch batch = await _client.query(

@@ -47,10 +47,8 @@ void main() {
 
     test('mysql_native_password scramble matches an independent computation',
         () {
-      final List<int> scramble =
-          List<int>.generate(20, (int i) => i + 1);
-      final List<int> digest =
-          nativePasswordScramble('secret', scramble);
+      final List<int> scramble = List<int>.generate(20, (int i) => i + 1);
+      final List<int> digest = nativePasswordScramble('secret', scramble);
       final String hex = digest
           .map((int byte) => byte.toRadixString(16).padLeft(2, '0'))
           .join();
@@ -65,10 +63,18 @@ void main() {
 
   group('length encoded integers', () {
     test('round trip across every width', () {
-      for (final int value in <int>[0, 1, 250, 251, 65535, 65536, 16777215,
-        16777216, 4294967295]) {
-        final MysqlWriter writer = MysqlWriter()
-          ..writeLengthEncodedInt(value);
+      for (final int value in <int>[
+        0,
+        1,
+        250,
+        251,
+        65535,
+        65536,
+        16777215,
+        16777216,
+        4294967295
+      ]) {
+        final MysqlWriter writer = MysqlWriter()..writeLengthEncodedInt(value);
         final MysqlReader reader = MysqlReader(writer.takeBytes());
         expect(reader.readLengthEncodedInt(), value,
             reason: 'value $value did not survive the round trip');
@@ -82,15 +88,16 @@ void main() {
     });
 
     test('truncated input raises a protocol error, not a hang', () {
-      final MysqlReader reader = MysqlReader(Uint8List.fromList(<int>[0xfc, 1]));
-      expect(reader.readLengthEncodedInt, throwsA(isA<MysqlProtocolException>()));
+      final MysqlReader reader =
+          MysqlReader(Uint8List.fromList(<int>[0xfc, 1]));
+      expect(
+          reader.readLengthEncodedInt, throwsA(isA<MysqlProtocolException>()));
     });
   });
 
   group('handshake', () {
     test('parses the real greeting layout', () {
-      final MysqlHandshake handshake =
-          MysqlHandshake.parse(serverGreeting());
+      final MysqlHandshake handshake = MysqlHandshake.parse(serverGreeting());
       expect(handshake.protocolVersion, 10);
       expect(handshake.serverVersion, '10.11.6-MariaDB');
       expect(handshake.connectionId, 42);

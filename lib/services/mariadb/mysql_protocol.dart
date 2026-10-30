@@ -31,9 +31,15 @@ class MysqlCapability {
   static const int deprecateEof = 0x01000000;
 
   /// Flags PALLSQL always requests.
-  static const int base =
-      longPassword | longFlag | protocol41 | transactions | secureConnection |
-      pluginAuth | multiResults | psMultiResults | multiStatements;
+  static const int base = longPassword |
+      longFlag |
+      protocol41 |
+      transactions |
+      secureConnection |
+      pluginAuth |
+      multiResults |
+      psMultiResults |
+      multiStatements;
 }
 
 /// Server status flags carried by OK and EOF packets.
@@ -277,7 +283,8 @@ class MysqlReader {
 
   Uint8List readBytes(int count) {
     _require(count);
-    final Uint8List slice = Uint8List.sublistView(bytes, offset, offset + count);
+    final Uint8List slice =
+        Uint8List.sublistView(bytes, offset, offset + count);
     offset += count;
     return slice;
   }
@@ -400,7 +407,8 @@ class MysqlOkPacket {
   final int warningCount;
   final String info;
 
-  bool get moreResults => (statusFlags & MysqlServerStatus.moreResultsExist) != 0;
+  bool get moreResults =>
+      (statusFlags & MysqlServerStatus.moreResultsExist) != 0;
 
   static MysqlOkPacket parse(Uint8List payload) {
     final MysqlReader reader = MysqlReader(payload, 1);
@@ -461,7 +469,8 @@ class MysqlEofPacket {
   final int warningCount;
   final int statusFlags;
 
-  bool get moreResults => (statusFlags & MysqlServerStatus.moreResultsExist) != 0;
+  bool get moreResults =>
+      (statusFlags & MysqlServerStatus.moreResultsExist) != 0;
 
   static MysqlEofPacket parse(Uint8List payload) {
     if (payload.length <= 1) {
@@ -642,8 +651,8 @@ List<int> _sha1(List<int> message) {
   buffer[messageLength] = 0x80;
   final ByteData view = ByteData.sublistView(buffer);
   view.setUint32(paddedLength - 4, bitLength & 0xffffffff, Endian.big);
-  view.setUint32(paddedLength - 8, (bitLength ~/ 0x100000000) & 0xffffffff,
-      Endian.big);
+  view.setUint32(
+      paddedLength - 8, (bitLength ~/ 0x100000000) & 0xffffffff, Endian.big);
 
   int h0 = 0x67452301;
   int h1 = 0xEFCDAB89;
@@ -680,8 +689,7 @@ List<int> _sha1(List<int> message) {
         f = b ^ c ^ d;
         k = 0xCA62C1D6;
       }
-      final int temp =
-          (_rotateLeft(a, 5) + f + e + k + w[i]) & 0xffffffff;
+      final int temp = (_rotateLeft(a, 5) + f + e + k + w[i]) & 0xffffffff;
       e = d;
       d = c;
       c = _rotateLeft(b, 30);

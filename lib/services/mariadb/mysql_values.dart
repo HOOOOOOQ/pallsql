@@ -32,7 +32,9 @@ String? readTextCell(MysqlReader reader, MysqlColumn column) {
 Object? readBinaryCell(MysqlReader reader, MysqlColumn column) {
   switch (column.type) {
     case MysqlType.tiny:
-      return column.isUnsigned ? reader.readInt1() : _signed(reader.readInt1(), 8);
+      return column.isUnsigned
+          ? reader.readInt1()
+          : _signed(reader.readInt1(), 8);
     case MysqlType.short:
     case MysqlType.year:
       return column.isUnsigned
@@ -290,8 +292,7 @@ String quoteIdentifier(String identifier) {
 /// Quotes a string literal for the rare places where SQL is assembled instead
 /// of bound (no parameters accepted by the statement, e.g. `SHOW GRANTS FOR`).
 String quoteLiteral(String value) {
-  final String escaped =
-      value.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+  final String escaped = value.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
   return "'$escaped'";
 }
 

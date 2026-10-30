@@ -54,8 +54,7 @@ class _SqlEditorPageState extends ConsumerState<SqlEditorPage> {
   bool _fullscreen = false;
   int _tab = 0;
 
-  MariaDbRepository get _repository =>
-      ref.read(databaseRepositoryProvider);
+  MariaDbRepository get _repository => ref.read(databaseRepositoryProvider);
 
   @override
   void initState() {

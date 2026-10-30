@@ -240,14 +240,14 @@ class MariaDbClient {
       }
     }
     final MariaDbBatch version = await query('SELECT VERSION() AS version');
-    final List<String?>? row = version.last?.rows.isNotEmpty == true
-        ? version.last!.rows.first
-        : null;
+    final List<String?>? row =
+        version.last?.rows.isNotEmpty == true ? version.last!.rows.first : null;
     if (row != null && row.isNotEmpty) {
       _serverVersion = row.first;
       values['version'] = row.first ?? '';
     }
-    final MariaDbBatch threads = await query("SHOW STATUS LIKE 'Threads_connected'");
+    final MariaDbBatch threads =
+        await query("SHOW STATUS LIKE 'Threads_connected'");
     for (final List<String?> item
         in threads.last?.rows ?? const <List<String?>>[]) {
       if (item.length >= 2) {

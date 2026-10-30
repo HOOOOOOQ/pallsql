@@ -73,8 +73,7 @@ void main() {
 
   test('SHOW DATABASES lists real schemas', () async {
     final MariaDbBatch batch = await client.query('SHOW DATABASES');
-    final List<String?> names = (batch.last?.rows ??
-            const <List<String?>>[])
+    final List<String?> names = (batch.last?.rows ?? const <List<String?>>[])
         .map((List<String?> row) => row.first)
         .toList();
     expect(names, isNotEmpty);
@@ -128,8 +127,8 @@ void main() {
     final MariaDbBatch selected = await client.query(
       'SELECT id, name, score, created_at FROM users ORDER BY id',
     );
-    expect(selected.last?.columns,
-        <String>['id', 'name', 'score', 'created_at']);
+    expect(
+        selected.last?.columns, <String>['id', 'name', 'score', 'created_at']);
     expect(selected.last?.rows.single[1], 'alpha');
     expect(selected.last?.rows.single[2], '12.50');
     expect(selected.last?.rows.single[3], '2026-02-03 04:05:06');
@@ -137,9 +136,8 @@ void main() {
     // DESCRIBE / SHOW CREATE TABLE are answered by the server itself.
     final MariaDbBatch described = await client.query('DESCRIBE users');
     expect(described.last?.columns.first, 'Field');
-    final List<String?> fields = described.last!.rows
-        .map((List<String?> row) => row.first)
-        .toList();
+    final List<String?> fields =
+        described.last!.rows.map((List<String?> row) => row.first).toList();
     expect(fields, <String>['id', 'name', 'score', 'created_at']);
 
     final MariaDbBatch ddl = await client.query('SHOW CREATE TABLE users');
@@ -161,7 +159,8 @@ void main() {
       <Object?>['alpha'],
     );
     expect(deleted.last?.affectedRows, 1);
-    final MariaDbBatch empty = await client.query('SELECT COUNT(*) AS c FROM users');
+    final MariaDbBatch empty =
+        await client.query('SELECT COUNT(*) AS c FROM users');
     expect(empty.last?.rows.single.single, '0');
   });
 
@@ -231,7 +230,8 @@ void main() {
       () async {
     // A batch keeps partial results, so a failing single statement reports the
     // server error instead of throwing the work away.
-    final MariaDbBatch failed = await client.query('SELECT * FROM nowhere.at_all');
+    final MariaDbBatch failed =
+        await client.query('SELECT * FROM nowhere.at_all');
     expect(failed.error, isNotNull);
     expect(failed.error?.code, 1146);
     expect(failed.error?.message.toLowerCase(), contains('doesn\'t exist'));

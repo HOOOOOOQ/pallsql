@@ -340,8 +340,7 @@ class DatabaseNotifier extends AsyncNotifier<DatabaseOverview>
   }
 
   Future<DatabaseOverview> _load() async {
-    final MariaDbRepository repository =
-        ref.read(databaseRepositoryProvider);
+    final MariaDbRepository repository = ref.read(databaseRepositoryProvider);
     final AppBootstrap bootstrap = ref.read(bootstrapProvider);
     // Touch the process state first: the engine probe below is a real TCP +
     // protocol round trip, so it can only succeed when a server is running.
@@ -386,8 +385,7 @@ class DatabaseNotifier extends AsyncNotifier<DatabaseOverview>
 
   @override
   Future<String?> createDatabase(String name) async {
-    final MariaDbRepository repository =
-        ref.read(databaseRepositoryProvider);
+    final MariaDbRepository repository = ref.read(databaseRepositoryProvider);
     try {
       await repository.createDatabase(name);
       await refresh();
@@ -399,8 +397,7 @@ class DatabaseNotifier extends AsyncNotifier<DatabaseOverview>
 
   @override
   Future<String?> deleteDatabase(String name) async {
-    final MariaDbRepository repository =
-        ref.read(databaseRepositoryProvider);
+    final MariaDbRepository repository = ref.read(databaseRepositoryProvider);
     try {
       await repository.deleteDatabase(name);
       await refresh();
@@ -784,8 +781,7 @@ class AppTerminalApi implements TerminalApi {
 
   @override
   Future<List<DatabaseInfo>> databases() async {
-    final MariaDbRepository repository =
-        ref.read(databaseRepositoryProvider);
+    final MariaDbRepository repository = ref.read(databaseRepositoryProvider);
     return repository.listDatabases();
   }
 
@@ -824,7 +820,8 @@ class AppTerminalApi implements TerminalApi {
       ref.read(databaseRepositoryProvider).availability();
 
   @override
-  MariaDbStatus get mariaDbStatus => ref.read(mariadbServiceProvider).snapshot();
+  MariaDbStatus get mariaDbStatus =>
+      ref.read(mariadbServiceProvider).snapshot();
 
   @override
   Future<String> startMariaDb() async {

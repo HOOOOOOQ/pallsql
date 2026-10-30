@@ -327,7 +327,8 @@ class MariaDbConnection {
   // -------------------------------------------------------------------
 
   int _clientCapabilities({bool withDatabase = false}) {
-    int flags = MysqlCapability.base | MysqlCapability.pluginAuthLenEncClientData;
+    int flags =
+        MysqlCapability.base | MysqlCapability.pluginAuthLenEncClientData;
     if (withDatabase) {
       flags |= MysqlCapability.connectWithDb;
     }
@@ -371,7 +372,8 @@ class MariaDbConnection {
     while (true) {
       final Uint8List payload = await _readPacket(config.connectTimeout);
       if (payload.isEmpty) {
-        throw const MysqlProtocolException('Empty packet during authentication');
+        throw const MysqlProtocolException(
+            'Empty packet during authentication');
       }
       final int header = payload[0];
       if (header == 0x00) {
@@ -849,7 +851,9 @@ class _ByteQueue {
 
   int peekUint3() {
     _require(3);
-    return _buffer[_start] | (_buffer[_start + 1] << 8) | (_buffer[_start + 2] << 16);
+    return _buffer[_start] |
+        (_buffer[_start + 1] << 8) |
+        (_buffer[_start + 2] << 16);
   }
 
   void skip(int count) {
@@ -859,8 +863,8 @@ class _ByteQueue {
 
   Uint8List take(int count) {
     _require(count);
-    final Uint8List slice =
-        Uint8List.fromList(Uint8List.sublistView(_buffer, _start, _start + count));
+    final Uint8List slice = Uint8List.fromList(
+        Uint8List.sublistView(_buffer, _start, _start + count));
     _start += count;
     return slice;
   }

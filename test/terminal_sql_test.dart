@@ -98,8 +98,8 @@ void main() {
   test('metadata statements are answered by the server itself', () async {
     final TerminalService terminal = service();
     await terminal.execute('sql $schema');
-    await terminal.execute(
-      'CREATE TABLE users (id INT AUTO_INCREMENT PRIMARY KEY);');
+    await terminal
+        .execute('CREATE TABLE users (id INT AUTO_INCREMENT PRIMARY KEY);');
 
     expect(text(await terminal.execute('SHOW TABLES;')), contains('users'));
     expect(text(await terminal.execute('DESCRIBE users;')), contains('Field'));
@@ -166,8 +166,8 @@ void main() {
     final TerminalService terminal = service();
     await terminal.execute('use $schema');
     await terminal.execute('sql $schema');
-    await terminal.execute(
-      'CREATE TABLE items (id INT AUTO_INCREMENT PRIMARY KEY);');
+    await terminal
+        .execute('CREATE TABLE items (id INT AUTO_INCREMENT PRIMARY KEY);');
 
     expect(text(await terminal.execute('.tables')), contains('items'));
     expect(text(await terminal.execute('desc items')), contains('Field'));

@@ -124,7 +124,8 @@ class LegacySqliteMigration {
               sizeBytes: stat.size,
               modifiedAt: stat.modified,
               tables: tables
-                  .map((Map<String, Object?> row) => row['name']?.toString() ?? '')
+                  .map((Map<String, Object?> row) =>
+                      row['name']?.toString() ?? '')
                   .where((String value) => value.isNotEmpty)
                   .toList(growable: false),
             ),
@@ -257,8 +258,7 @@ class LegacySqliteMigration {
     for (final Map<String, Object?> row in rows) {
       final List<String> columns =
           row.keys.map((String key) => _quote(key)).toList(growable: false);
-      final String placeholders =
-          row.keys.map((String _) => '?').join(', ');
+      final String placeholders = row.keys.map((String _) => '?').join(', ');
       final dynamic result = await repository.execute(
         schema,
         'INSERT INTO ${_quote(table)} (${columns.join(', ')}) '

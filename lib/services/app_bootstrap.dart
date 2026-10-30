@@ -147,8 +147,8 @@ class AppBootstrap {
     final MariaDbConfigStore mariadbConfigStore = MariaDbConfigStore(
       directory: Directory(p.join(workspace.rootPath, 'config', 'server')),
     );
-    final MariaDbConfig mariadbConfig = mariaDbConfig ??
-        await mariadbConfigStore.load();
+    final MariaDbConfig mariadbConfig =
+        mariaDbConfig ?? await mariadbConfigStore.load();
     final MariaDBServiceManager mariadb = MariaDBServiceManager(
       workspaceRoot: workspace.rootPath,
       native: bridge,
@@ -190,7 +190,8 @@ class AppBootstrap {
         );
       }
     }
-    final EngineAvailability mariadbAvailability = await databases.availability();
+    final EngineAvailability mariadbAvailability =
+        await databases.availability();
     logs.info(
       LogSource.database,
       mariadbAvailability.available

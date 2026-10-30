@@ -154,7 +154,8 @@ class _MariaDbConfigPageState extends ConsumerState<MariaDbConfigPage> {
       }
     } on Object catch (error) {
       if (mounted) {
-        showPallSqlSnack(messenger, 'Configuration rejected: $error', error: true);
+        showPallSqlSnack(messenger, 'Configuration rejected: $error',
+            error: true);
       }
     } finally {
       if (mounted) {
@@ -176,7 +177,9 @@ class _MariaDbConfigPageState extends ConsumerState<MariaDbConfigPage> {
       if (mounted) {
         showPallSqlSnack(
           messenger,
-          ok ? '$label: ${status.state.label}' : '$label failed: ${status.message}',
+          ok
+              ? '$label: ${status.state.label}'
+              : '$label failed: ${status.message}',
           error: !ok,
         );
       }
@@ -296,7 +299,8 @@ class _MariaDbConfigPageState extends ConsumerState<MariaDbConfigPage> {
                         expand: false,
                         onPressed: _busy || !manager.snapshot().isRunning
                             ? null
-                            : () => _lifecycle(() => manager.restart(), 'Restart'),
+                            : () =>
+                                _lifecycle(() => manager.restart(), 'Restart'),
                       ),
                       PallSQLButton(
                         label: 'Error log',
@@ -305,8 +309,8 @@ class _MariaDbConfigPageState extends ConsumerState<MariaDbConfigPage> {
                         expand: false,
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute<void>(
-                            builder: (BuildContext context) =>
-                                const LogsPage(initialSource: LogSource.database),
+                            builder: (BuildContext context) => const LogsPage(
+                                initialSource: LogSource.database),
                           ),
                         ),
                       ),
@@ -456,7 +460,8 @@ class _MariaDbConfigPageState extends ConsumerState<MariaDbConfigPage> {
                     label: 'Password',
                     obscure: true,
                     monospace: true,
-                    helper: 'Stored in config/server/mariadb.json with chmod 600 '
+                    helper:
+                        'Stored in config/server/mariadb.json with chmod 600 '
                         'and never written to a log. An empty password is '
                         'refused while the server listens on TCP.',
                   ),
