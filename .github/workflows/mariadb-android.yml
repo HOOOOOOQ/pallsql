@@ -274,6 +274,30 @@ jobs:
               exit 1
             }
 
+      # Feature probes that need a linked test binary are the usual trap in a
+      # cross build. The reason CMake recorded is printed as an annotation so
+      # the diagnosis does not depend on downloading the log artifact.
+      - name: Explain failed feature probes
+        run: |
+          set -euo pipefail
+          if [ -f native/build/CMakeFiles/CMakeError.log ]; then
+            grep -m2 -B2 -A12 -E "check_function_exists.*(mkstemp|memmove)" \
+              native/build/CMakeFiles/CMakeError.log | head -20 | while IFS= read -r line; do
+                [ -n "$line" ] && echo "::warning::$line"
+              done
+            echo "--- first error recorded by CMake ---"
+            head -40 native/build/CMakeFiles/CMakeError.log | while IFS= read -r line; do
+              [ -n "$line" ] && echo "::warning::$line"
+            done
+          else
+            echo "::warning::CMakeError.log was not produced"
+          fi
+          echo "--- probe results ---"
+          grep -E "Performing Test HAVE_(MKSTEMP|MEMMOVE|SIGWAIT|ACCESS)" \
+            native/build-configure.log || echo "no probe lines in the configure log"
+          echo "--- compile flags ---"
+          grep -m1 -A3 "CMAKE_C_FLAGS" native/build/CMakeCache.txt || true
+
       - name: Record the detected libc features
         run: |
           set -euo pipefail
@@ -283,15 +307,19 @@ jobs:
             exit 0
           fi
           missing=0
-          for macro in $(grep -o 'HAVE_[A-Z0-9_]*' "$SOURCE_DIR/config.h.cmake" | sort -u); do
+          listed=0
+          # Only single line `#cmakedefine HAVE_X` entries are compared; the
+          # templated ones (`HAVE_CHARSET_${name}`) are not real macros.
+          for macro in $(grep -oE '^#cmakedefine [0-9]*HAVE_[A-Z0-9_]+$' "$SOURCE_DIR/config.h.cmake" | awk '{print $NF}' | sort -u); do
             if ! grep -q "define $macro " "$header"; then
               missing=$((missing + 1))
-              if [ "$missing" -le 10 ]; then
+              if [ "$listed" -lt 10 ]; then
                 echo "::warning::$macro was not detected by the probes"
+                listed=$((listed + 1))
               fi
             fi
           done
-          echo "probes missed $missing HAVE_ macros (first 10 listed above)"
+          echo "probes missed $missing HAVE_ macros of the single line ones"
           grep -E "define HAVE_(MEMCPY|MEMMOVE|SIGWAIT|UNISTD_H) " "$header" || true
 
       # The 10 annotation slots per step let the exact compiler/configure error
