@@ -158,11 +158,10 @@ jobs:
       - name: Prepare the Android compile flags
         run: |
           set -euo pipefail
-          # bionic is stricter than glibc: several legacy MariaDB C files use
-          # POSIX/ctype functions without including the header that declares
-          # them, which newer clang rejects in C99 mode. Force including the
-          # standard headers is a compile time only fix and keeps the server
-          # source untouched.
+          # bionic does not pull the POSIX/ctype headers into every translation
+          # unit the way glibc does, so legacy C files (`mysys/get_password.c`,
+          # `mysys/mf_pack.c`) fail with "call to undeclared function".
+          # Force including the standard headers is a compile time only fix.
           cat > native/android-flags.cmake <<'EOF'
           set(PALLSQL_FORCED_HEADERS
               ctype.h errno.h pwd.h stdlib.h string.h strings.h
@@ -171,27 +170,6 @@ jobs:
             string(APPEND CMAKE_C_FLAGS " -include ${header}")
           endforeach()
           string(APPEND CMAKE_CXX_FLAGS " -include cctype -include cstring")
-
-          # `check_function_exists` declares the symbol as `char f(void)` and
-          # modern clang rejects that redeclaration of a libc function, so every
-          # such probe reports "not found" in this toolchain. The facts below
-          # are the functions bionic really provides at API 24; without them the
-          # sources take dead fallback paths (`bmove` undefined, `sigwait`
-          # redeclared, `create_temp_file` and `my_getwd` ending in #error).
-          # Each addition here came from a real build failure, so the list only
-          # ever names symbols that were proven to exist.
-          foreach(fact HAVE_MEMCPY HAVE_MEMMOVE HAVE_MKSTEMP HAVE_SIGWAIT
-                       HAVE_GETCWD HAVE_FSYNC HAVE_FDATASYNC HAVE_FTRUNCATE
-                       HAVE_FCHMOD HAVE_FCNTL HAVE_ACCESS HAVE_ALARM
-                       HAVE_CLOCK_GETTIME HAVE_GETTIMEOFDAY HAVE_TIME HAVE_TIMES
-                       HAVE_REALPATH HAVE_READLINK HAVE_SETLOCALE HAVE_STRCOLL
-                       HAVE_STRDUP HAVE_STRNDUP HAVE_VASPRINTF HAVE_ASPRINTF
-                       HAVE_STRING_H HAVE_STRINGS_H HAVE_MEMORY_H
-                       HAVE_UNISTD_H HAVE_SYS_TYPES_H HAVE_SYS_TIME_H
-                       HAVE_TIME_H HAVE_FCNTL_H HAVE_SYS_STAT_H)
-            string(APPEND CMAKE_C_FLAGS " -D${fact}=1")
-            string(APPEND CMAKE_CXX_FLAGS " -D${fact}=1")
-          endforeach()
           EOF
           cat native/android-flags.cmake
 
@@ -201,8 +179,32 @@ jobs:
       - name: Configure the cross build
         run: |
           set -euo pipefail
+          # `check_function_exists` declares the symbol as `char f(void)`, and
+          # modern clang rejects that redeclaration of a libc function, so every
+          # such probe reports "not found" in this toolchain. The facts below are
+          # the functions bionic really provides at API 24. They are passed as
+          # *cache variables* (not compiler flags) because the CMake logic uses
+          # them to decide which sources to compile at all: without HAVE_ALARM,
+          # `mysys/my_alarm.c` is not built and `my_set_alarm_variable` ends up
+          # undefined at link time. Every entry was added after a real failure.
+          facts=(
+            HAVE_ACCESS HAVE_ALARM HAVE_ASPRINTF HAVE_CLOCK_GETTIME
+            HAVE_FCHMOD HAVE_FCNTL HAVE_FDATASYNC HAVE_FSYNC HAVE_FTRUNCATE
+            HAVE_GETCWD HAVE_GETTIMEOFDAY HAVE_MEMCPY HAVE_MEMMOVE HAVE_MKSTEMP
+            HAVE_READLINK HAVE_REALPATH HAVE_SETLOCALE HAVE_SIGWAIT
+            HAVE_STRCOLL HAVE_STRDUP HAVE_STRNDUP HAVE_TIME HAVE_TIMES
+            HAVE_VASPRINTF
+            HAVE_FCNTL_H HAVE_MEMORY_H HAVE_STRING_H HAVE_STRINGS_H
+            HAVE_SYS_STAT_H HAVE_SYS_TIME_H HAVE_SYS_TYPES_H
+            HAVE_TIME_H HAVE_UNISTD_H
+          )
+          facts_args=()
+          for fact in "${facts[@]}"; do
+            facts_args+=("-D${fact}=1")
+          done
           "$CMAKE_BIN" -S "$SOURCE_DIR" -B native/build \
             -G Ninja \
+            "${facts_args[@]}" \
             -DCMAKE_TOOLCHAIN_FILE="$NDK_ROOT/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI=arm64-v8a \
             -DANDROID_PLATFORM="android-${ANDROID_API}" \
